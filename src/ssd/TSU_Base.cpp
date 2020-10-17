@@ -2,6 +2,7 @@
 #include "TSU_Base.h"
 #include "TSU_SpeedLimit.h"
 #include "TSU_OutofOrder.h"
+#include "TSU_FACTS.h"
 
 namespace SSD_Components
 {
@@ -48,6 +49,9 @@ namespace SSD_Components
 			break;
 		case Flash_Scheduling_Type::OUT_OF_ORDER:
 			((TSU_OutOfOrder*)_my_instance)->handle_transaction_serviced_signal_from_PHY(transaction);
+			break;
+		case Flash_Scheduling_Type::FACTS:
+			((TSU_FACTS*)_my_instance)->handle_transaction_serviced_signal_from_PHY(transaction);
 			break;
 		}
 	}

@@ -1,5 +1,5 @@
-#ifndef TSU_SPEEDLIMIT_H
-#define TSU_SPEEDLIMIT_H
+#ifndef TSU_FACTS_H
+#define TSU_FACTS_H
 
 #include "FTL.h"
 #include "TSU_Base.h"
@@ -10,15 +10,15 @@ namespace SSD_Components
 {
 	class FTL;
 
-	class TSU_SpeedLimit : public TSU_Base
+	class TSU_FACTS : public TSU_Base
 	{
 	public:
-		TSU_SpeedLimit(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController, unsigned int channel_count,
+		TSU_FACTS(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController, unsigned int channel_count,
 			unsigned int chip_count_per_channel, unsigned int die_count_per_chip, unsigned int plane_count_per_die,
 			unsigned int StreamCount, sim_time_type WriteReasonableSuspensionTimeForRead,
 			sim_time_type EraseReasonableSuspensionTimeForRead, sim_time_type EraseReasonableSuspensionTimeForWrite,
 			bool EraseSuspensionEnabled, bool ProgramSuspensionEnabled);
-		~TSU_SpeedLimit();
+		~TSU_FACTS();
 		void Prepare_for_transaction_submit();
 		void Submit_transaction(NVM_Transaction_Flash* transaction);
 		void Schedule();
@@ -94,4 +94,4 @@ namespace SSD_Components
 	};
 }
 
-#endif // !TSU_SPEEDLIMIT_H
+#endif // TSU_FACTS_H

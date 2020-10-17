@@ -279,6 +279,9 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 	case SSD_Components::Flash_Scheduling_Type::SPEED_LIMIT:
 		val = "SPEED_LIMIT";
 		break;
+	case SSD_Components::Flash_Scheduling_Type::FACTS:
+		val = "FACTS";
+		break;
 	default:
 		break;
 	}
@@ -583,6 +586,8 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::FLIN;
 				else if (strcmp(val.c_str(), "SPEED_LIMIT") == 0)
 					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SPEED_LIMIT;
+				else if (strcmp(val.c_str(), "FACTS") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::FACTS;
 				else PRINT_ERROR("Unknown transaction scheduling type specified in the SSD configuration file")
 			}
 			else if (strcmp(param->name(), "Overprovisioning_Ratio") == 0)

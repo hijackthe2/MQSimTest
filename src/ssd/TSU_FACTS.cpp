@@ -1,13 +1,13 @@
-#include "TSU_SpeedLimit.h"
+#include "TSU_FACTS.h"
 
 namespace SSD_Components
 {
-	TSU_SpeedLimit::TSU_SpeedLimit(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController,
+	TSU_FACTS::TSU_FACTS(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController,
 		unsigned int channel_count, unsigned int chip_count_per_channel, unsigned int die_count_per_chip,
 		unsigned int plane_count_per_die, unsigned int StreamCount, sim_time_type WriteReasonableSuspensionTimeForRead,
 		sim_time_type EraseReasonableSuspensionTimeForRead, sim_time_type EraseReasonableSuspensionTimeForWrite,
 		bool EraseSuspensionEnabled, bool ProgramSuspensionEnabled)
-		: TSU_Base(id, ftl, NVMController, Flash_Scheduling_Type::SPEED_LIMIT, channel_count, chip_count_per_channel,
+		: TSU_Base(id, ftl, NVMController, Flash_Scheduling_Type::FACTS, channel_count, chip_count_per_channel,
 			die_count_per_chip, plane_count_per_die, WriteReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForRead,
 			EraseReasonableSuspensionTimeForWrite, EraseSuspensionEnabled, ProgramSuspensionEnabled),
 		stream_count(StreamCount), min_user_read_arrival_count(channel_count), min_user_write_arrival_count(channel_count),
@@ -123,7 +123,7 @@ namespace SSD_Components
 		}
 	}
 
-	TSU_SpeedLimit::~TSU_SpeedLimit()
+	TSU_FACTS::~TSU_FACTS()
 	{
 
 		for (stream_id_type stream_id = 0; stream_id < stream_count; ++stream_id)
@@ -210,7 +210,7 @@ namespace SSD_Components
 		delete[] remain_in_write_queue_count;
 	}
 
-	void TSU_SpeedLimit::Start_simulation()
+	void TSU_FACTS::Start_simulation()
 	{
 		if (stream_count > 1)
 		{
@@ -218,9 +218,9 @@ namespace SSD_Components
 			Simulator->Register_sim_event(2000000, this, 0, (int)Transaction_Type::WRITE);
 		}
 	}
-	void TSU_SpeedLimit::Validate_simulation_config() {}
+	void TSU_FACTS::Validate_simulation_config() {}
 
-	void TSU_SpeedLimit::Execute_simulator_event(MQSimEngine::Sim_Event* event)
+	void TSU_FACTS::Execute_simulator_event(MQSimEngine::Sim_Event* event)
 	{
 		switch (event->Type)
 		{
@@ -237,7 +237,7 @@ namespace SSD_Components
 		}
 	}
 
-	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
+	void TSU_FACTS::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;
@@ -275,7 +275,7 @@ namespace SSD_Components
 			<< "\t" << (double)transaction->shared_time / transaction->alone_time << "\n";*/
 	}
 
-	void TSU_SpeedLimit::update(unsigned int* arrival_count, unsigned int* limit_speed, unsigned int max_arrival_count,
+	void TSU_FACTS::update(unsigned int* arrival_count, unsigned int* limit_speed, unsigned int max_arrival_count,
 		unsigned int middle_arrival_count, unsigned int min_arrival_count, std::vector<stream_id_type>& idx,
 		const unsigned int interval_time, int type)
 	{
@@ -317,7 +317,7 @@ namespace SSD_Components
 		Simulator->Register_sim_event(Simulator->Time() + interval_time, this, 0, type);
 	}
 
-	inline void TSU_SpeedLimit::Prepare_for_transaction_submit()
+	inline void TSU_FACTS::Prepare_for_transaction_submit()
 	{
 		opened_scheduling_reqs++;
 		if (opened_scheduling_reqs > 1)
@@ -325,12 +325,12 @@ namespace SSD_Components
 		transaction_receive_slots.clear();
 	}
 
-	inline void TSU_SpeedLimit::Submit_transaction(NVM_Transaction_Flash* transaction)
+	inline void TSU_FACTS::Submit_transaction(NVM_Transaction_Flash* transaction)
 	{
 		transaction_receive_slots.push_back(transaction);
 	}
 
-	void TSU_SpeedLimit::Schedule()
+	void TSU_FACTS::Schedule()
 	{
 		opened_scheduling_reqs--;
 		if (opened_scheduling_reqs > 0)
@@ -450,7 +450,7 @@ namespace SSD_Components
 		}
 	}
 
-	void TSU_SpeedLimit::speed_limit(Flash_Transaction_Queue** UserTRQueue, Flash_Transaction_Queue* UserTRBuffer,
+	void TSU_FACTS::speed_limit(Flash_Transaction_Queue** UserTRQueue, Flash_Transaction_Queue* UserTRBuffer,
 		unsigned int* UserTRCount, unsigned int* user_limit_speed, std::vector<stream_id_type>& user_idx)
 	{
 		if (stream_count == 1) return;
@@ -469,7 +469,7 @@ namespace SSD_Components
 		}
 	}
 
-	void TSU_SpeedLimit::estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_count)
+	void TSU_FACTS::estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_count)
 	{
 		sim_time_type chip_busy_time = 0, waiting_last_time = 0;
 		NVM_Transaction_Flash* chip_tr = _NVMController->Is_chip_busy_with_stream(transaction);
@@ -494,7 +494,7 @@ namespace SSD_Components
 		<< transaction->alone_time << "\t" << Simulator->Time() << "\n";*/
 	}
 
-	void TSU_SpeedLimit::estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_read_count,
+	void TSU_FACTS::estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_read_count,
 		unsigned long remain_write_count)
 	{
 		sim_time_type chip_busy_time = 0, waiting_read_last_time = 0, waiting_write_last_time = 0;
@@ -513,7 +513,7 @@ namespace SSD_Components
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
-	void TSU_SpeedLimit::estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count)
+	void TSU_FACTS::estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count)
 	{
 		sim_time_type chip_busy_time = 0, waiting_last_time = 0;
 		NVM_Transaction_Flash* chip_tr = _NVMController->Is_chip_busy_with_stream(transaction);
@@ -540,7 +540,7 @@ namespace SSD_Components
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
-	void TSU_SpeedLimit::estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_read_total_count,
+	void TSU_FACTS::estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_read_total_count,
 		unsigned long* remain_write_total_count)
 	{
 		unsigned long remain_read_count = 0, remain_write_count = 0;
@@ -566,7 +566,7 @@ namespace SSD_Components
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
-	bool TSU_SpeedLimit::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	bool TSU_FACTS::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		bool suspensionRequired = false;
 		ChipStatus cs = _NVMController->GetChipStatus(chip);
@@ -679,7 +679,7 @@ namespace SSD_Components
 		return true;
 	}
 
-	bool TSU_SpeedLimit::service_write_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	bool TSU_FACTS::service_write_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		bool suspensionRequired = false;
 		ChipStatus cs = _NVMController->GetChipStatus(chip);
@@ -790,7 +790,7 @@ namespace SSD_Components
 		return true;
 	}
 
-	bool TSU_SpeedLimit::service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	bool TSU_FACTS::service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
 			return false;
@@ -841,7 +841,7 @@ namespace SSD_Components
 		return true;
 	}
 
-	void TSU_SpeedLimit::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	void TSU_FACTS::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		if (stream_count > 1)
 		{
@@ -922,7 +922,7 @@ namespace SSD_Components
 		}
 	}
 
-	void TSU_SpeedLimit::estimate_proportional_wait(NVM_Transaction_Flash_RD* read_slot,
+	void TSU_FACTS::estimate_proportional_wait(NVM_Transaction_Flash_RD* read_slot,
 		NVM_Transaction_Flash_WR* write_slot, double& pw_read, double& pw_write, int GCM, flash_channel_ID_type channel_id,
 		flash_chip_ID_type chip_id)
 	{
@@ -954,7 +954,7 @@ namespace SSD_Components
 		}
 	}
 
-	NVM_Transaction_Flash_RD* TSU_SpeedLimit::get_read_slot(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	NVM_Transaction_Flash_RD* TSU_FACTS::get_read_slot(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		NVM_Transaction_Flash* slot = NULL;
 		if (MappingReadTRQueue[channel_id][chip_id].empty())
@@ -971,7 +971,7 @@ namespace SSD_Components
 		return (NVM_Transaction_Flash_RD*)slot;
 	}
 
-	NVM_Transaction_Flash_WR* TSU_SpeedLimit::get_write_slot(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	NVM_Transaction_Flash_WR* TSU_FACTS::get_write_slot(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		NVM_Transaction_Flash* slot = NULL;
 		if (MappingWriteTRQueue[channel_id][chip_id].empty())
@@ -985,7 +985,7 @@ namespace SSD_Components
 		return (NVM_Transaction_Flash_WR*)slot;
 	}
 
-	void TSU_SpeedLimit::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)
+	void TSU_FACTS::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)
 	{
 		name_prefix = name_prefix + +".TSU";
 		xmlwriter.Write_open_tag(name_prefix);

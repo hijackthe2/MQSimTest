@@ -12,7 +12,7 @@
 
 namespace SSD_Components
 {
-	enum class Flash_Scheduling_Type {OUT_OF_ORDER, FLIN, SPEED_LIMIT};
+	enum class Flash_Scheduling_Type { OUT_OF_ORDER, FLIN, SPEED_LIMIT, FACTS };
 	class FTL;
 	class TSU_Base : public MQSimEngine::Sim_Object
 	{
