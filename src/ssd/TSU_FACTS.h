@@ -36,6 +36,10 @@ namespace SSD_Components
 		Flash_Transaction_Queue** MappingReadTRQueue;
 		Flash_Transaction_Queue** MappingWriteTRQueue;
 
+		Flash_Transaction_Queue* buffer;
+		sim_time_type* estimated_shared_time;
+		sim_time_type* estimated_alone_time;
+
 		unsigned int stream_count;
 		sim_time_type* buffer_total_time;
 		sim_time_type* queue_total_time;
@@ -51,6 +55,9 @@ namespace SSD_Components
 		unsigned long long* write_total_count;
 		double* slowdown;
 
+		void buffering(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* buffer, Flash_Transaction_Queue* queue);
+		void fairness_scheduling(Flash_Transaction_Queue* buffer, Flash_Transaction_Queue** queue, sim_time_type* shared_time,
+			sim_time_type* alone_time);
 		void estimate_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* user_queue);
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
