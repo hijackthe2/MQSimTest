@@ -21,7 +21,7 @@ namespace SSD_Components
 	{
 		rga_set_size = (unsigned int)log2(block_no_per_plane);
 		gc_fs.open("out/gc_info.txt", std::fstream::out);
-		fs << fixed << setprecision(3);
+		gc_fs << std::fixed << std::setprecision(3);
 		gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
 			<< "block_valid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
 			<< "GC\n";
