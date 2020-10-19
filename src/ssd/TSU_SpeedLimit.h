@@ -37,6 +37,8 @@ namespace SSD_Components
 		Flash_Transaction_Queue** MappingReadTRQueue;
 		Flash_Transaction_Queue** MappingWriteTRQueue;
 
+		Flash_Transaction_Queue** UserTRQueue;
+
 		unsigned int stream_count;
 		unsigned int* user_read_limit_speed;
 		unsigned int* user_write_limit_speed;
@@ -91,6 +93,12 @@ namespace SSD_Components
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		void service_transaction(NVM::FlashMemory::Flash_Chip* chip);
+
+		void buffering(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* buffer, Flash_Transaction_Queue* queue);
+		bool facts_service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
+		bool facts_service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
+		bool facts_service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
+		void facts_service_transaction(NVM::FlashMemory::Flash_Chip* chip);
 	};
 }
 

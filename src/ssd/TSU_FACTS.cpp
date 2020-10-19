@@ -277,6 +277,7 @@ namespace SSD_Components
 		if (stream_count == 1)
 		{
 			transaction->queue_time = Simulator->Time();
+			estimate_time(transaction, queue);
 			queue->push_back(transaction);
 		}
 		else
@@ -321,13 +322,18 @@ namespace SSD_Components
 					selected_stream_id = stream_id;
 				}
 			}
-			NVM_Transaction_Flash* tr = buffer[selected_stream_id].front();
-			buffer[selected_stream_id].pop_front();
-			queue[tr->Address.ChannelID][tr->Address.ChipID].push_back(tr);
-			double new_slowdown = (double)(shared_time[selected_stream_id] + tr->shared_time)
-				/ (alone_time[selected_stream_id] + tr->alone_time);
-			min_slowdown = std::min(min_slowdown, new_slowdown);
-			max_slowdown = std::max(max_slowdown, new_slowdown);
+			if (selected_stream_id < stream_count)
+			{
+				NVM_Transaction_Flash* tr = buffer[selected_stream_id].front();
+				buffer[selected_stream_id].pop_front();
+				queue[tr->Address.ChannelID][tr->Address.ChipID].push_back(tr);
+				double new_slowdown = (double)(shared_time[selected_stream_id] + tr->shared_time)
+					/ (alone_time[selected_stream_id] + tr->alone_time);
+				min_slowdown = std::min(min_slowdown, new_slowdown);
+				max_slowdown = std::max(max_slowdown, new_slowdown);
+				//std::cout << min_slowdown / max_slowdown << "\n";
+			}
+			else break;
 		}
 	}
 
@@ -596,6 +602,7 @@ namespace SSD_Components
 
 	void TSU_FACTS::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
+		fairness_scheduling(buffer, UserTRQueue, estimated_shared_time, estimated_alone_time);
 		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
 			return;
 		if (UserTRQueue[chip->ChannelID][chip->ChipID].empty())
