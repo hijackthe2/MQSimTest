@@ -5,6 +5,7 @@
 #include "NVM_PHY_ONFI.h"
 #include "../utils/RandomGenerator.h"
 #include <queue>
+#include <fstream>
 
 
 namespace SSD_Components
@@ -19,7 +20,10 @@ namespace SSD_Components
 			unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int sectors_per_page, 
 			bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane = 10, 
 			bool dynamic_wearleveling_enabled = true, bool static_wearleveling_enabled = true, unsigned int static_wearleveling_threshold = 100, int seed = 432);
-
+		~GC_and_WL_Unit_Page_Level()
+		{
+			gc_fs.close();
+		}
 		/*This function is used for implementing preemptible GC execution. If for a flash chip the free block
 		* pool becomes close to empty, then the GC requests for that flash chip should be prioritized and
 		* GC should go on in non-preemptible mode.*/
@@ -28,6 +32,7 @@ namespace SSD_Components
 		void Check_gc_required(const unsigned int free_block_pool_size, const NVM::FlashMemory::Physical_Page_Address& plane_address);
 	private:
 		NVM_PHY_ONFI * flash_controller;
+		std::fstream gc_fs;
 	};
 }
 #endif // !GC_AND_WL_UNIT_PAGE_LEVEL_H

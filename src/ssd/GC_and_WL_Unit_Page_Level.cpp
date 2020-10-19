@@ -4,6 +4,7 @@
 #include "GC_and_WL_Unit_Page_Level.h"
 #include "Flash_Block_Manager.h"
 #include "FTL.h"
+#include "TSU_OutofOrder.h"
 
 namespace SSD_Components
 {
@@ -19,6 +20,10 @@ namespace SSD_Components
 			dynamic_wearleveling_enabled, static_wearleveling_enabled, static_wearleveling_threshold, seed)
 	{
 		rga_set_size = (unsigned int)log2(block_no_per_plane);
+		gc_fs.open("out/gc_info.txt", std::fstream::out);
+		gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
+			<< "block_valid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
+			<< "GC\n";
 	}
 	
 	bool GC_and_WL_Unit_Page_Level::GC_is_in_urgent_mode(const NVM::FlashMemory::Flash_Chip* chip)
@@ -129,13 +134,34 @@ namespace SSD_Components
 			Block_Pool_Slot_Type* block = &pbke->Blocks[gc_candidate_block_id];
 			if (block->Current_page_write_index == 0 || block->Invalid_page_count == 0)//No invalid page to erase
 				return;
-			
+
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_erase_operations.insert(gc_candidate_block_id);
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
 			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
+
+				// plane
+				double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
+				double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
+				double plane_free_page_percent = (double)pbke->Free_pages_count / pbke->Total_pages_count;
+				double plane_free_block_percent = (double)pbke->Free_block_pool.size() / block_no_per_plane;
+
+				// block
+				double block_valid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
+
+				// proportional slowdown
+				double proportional_slowdown = ((TSU_OutOfOrder*)tsu)->proportional_slowdown(block->Stream_id);
+				//std::cout << block->Stream_id << "\t" << proportional_slowdown << "\n";
+
+				// gc queue
+				bool has_gc_transaction = ((TSU_OutOfOrder*)tsu)->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
+
+				gc_fs << plane_invalid_page_percent << "\t" << plane_valid_page_percent << "\t" << plane_free_page_percent << "\t"
+					<< plane_free_block_percent << "\t" << block_valid_page_percent << "\t" << proportional_slowdown << "\t"
+					<< has_gc_transaction << "\t" << 1 << "\n";
+
 				Stats::Total_gc_executions++;
 				tsu->Prepare_for_transaction_submit();
 

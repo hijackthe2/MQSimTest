@@ -283,6 +283,7 @@ namespace SSD_Components
 	{
 		unsigned int min_count = INT_MAX;
 		double* workload_slowdown = new double[stream_count];
+		double max_slowdown = -1;
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
 			if (arrival_count[stream_id] > 0)
@@ -293,6 +294,7 @@ namespace SSD_Components
 			if (alone_total_time[stream_id] > 0)
 			{
 				workload_slowdown[stream_id] = (double)shared_total_time[stream_id] / alone_total_time[stream_id];
+				max_slowdown = std::max(max_slowdown, workload_slowdown[stream_id]);
 			}
 		}
 		min_count = min_count > max_arrival_count ? max_arrival_count : std::min(min_count, middle_arrival_count);
@@ -307,10 +309,11 @@ namespace SSD_Components
 			{
 				limit_speed[stream_id] = tmp[stream_id] == 0 ? max_arrival_count
 					: std::max((unsigned int)(min_count / tmp[stream_id]), min_arrival_count);
+				limit_speed[stream_id] *= workload_slowdown[stream_id] / max_slowdown;
 				arrival_count[stream_id] = 0;
 				idx[stream_id] = stream_id;
 			}
-			sort(idx.begin(), idx.end(), [=](int a, int b) {return limit_speed[a] > limit_speed[b]; });
+			std::sort(idx.begin(), idx.end(), [=](int a, int b) {return limit_speed[a] > limit_speed[b]; });
 			delete[] tmp;
 		}
 		else if (type == (int)Transaction_Type::WRITE)
@@ -319,9 +322,9 @@ namespace SSD_Components
 			{
 				limit_speed[stream_id] = arrival_count[stream_id] == 0 ? max_arrival_count
 					: std::max(min_count, min_arrival_count);
+				limit_speed[stream_id] *= workload_slowdown[stream_id] / max_slowdown;
 				arrival_count[stream_id] = 0;
 			}
-			//limit_speed[1] /= 2;
 		}
 		Simulator->Register_sim_event(Simulator->Time() + interval_time, this, 0, type);
 		delete[] workload_slowdown;
@@ -472,14 +475,6 @@ namespace SSD_Components
 			{
 				NVM_Transaction_Flash* it = UserTRBuffer[stream_id].front();
 				UserTRBuffer[stream_id].pop_front();
-				//estimate_alone_time(it, remain_in_read_queue_count[it->Address.ChannelID][it->Address.ChipID][it->Stream_id]);
-				//estimate_shared_time(it, remain_in_read_queue_count[it->Address.ChannelID][it->Address.ChipID]);
-				/*estimate_alone_time(it,
-					remain_in_read_queue_count[it->Address.ChannelID][it->Address.ChipID][it->Stream_id],
-					remain_in_write_queue_count[it->Address.ChannelID][it->Address.ChipID][it->Stream_id]);
-				estimate_shared_time(it, remain_in_read_queue_count[it->Address.ChannelID][it->Address.ChipID],
-					remain_in_write_queue_count[it->Address.ChannelID][it->Address.ChipID]);
-				*/
 				UserTRQueue[it->Address.ChannelID][it->Address.ChipID].push_back(it);
 				UserTRCount[stream_id]++;
 				it->queue_time = Simulator->Time();

@@ -43,7 +43,7 @@ namespace SSD_Components
 
 		shared_total_time = new sim_time_type[stream_count];
 		alone_total_time = new sim_time_type[stream_count];
-		total_count = new sim_time_type[stream_count];
+		total_count = new unsigned long long[stream_count];
 		for (stream_id_type stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
 			shared_total_time[stream_id] = 0;
@@ -251,7 +251,9 @@ namespace SSD_Components
 				}
 			} while (itr_it != queue->begin());
 		}
-		transaction->alone_time = chip_busy_time + waiting_last_time / 2
+		if (transaction->Type == Transaction_Type::READ) waiting_last_time += waiting_last_time / 2;
+		else if (transaction->Type == Transaction_Type::WRITE) waiting_last_time /= 2;
+		transaction->alone_time = chip_busy_time + waiting_last_time
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
@@ -269,6 +271,21 @@ namespace SSD_Components
 		}
 		transaction->shared_time = chip_busy_time + waiting_last_time / 2
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
+	}
+
+	double TSU_OutOfOrder::proportional_slowdown(stream_id_type gc_stream_id)
+	{
+		double min_slowdown = INT_MAX;
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			if (alone_total_time[stream_id])
+			{
+				min_slowdown = std::min(min_slowdown, (double)shared_total_time[stream_id] / alone_total_time[stream_id]);
+			}
+		}
+		double slowdown = (double)shared_total_time[gc_stream_id] / (1e-10 + alone_total_time[gc_stream_id]);
+		//std::cout << "slowdown\t" << shared_total_time[gc_stream_id] << "\t" << alone_total_time[gc_stream_id] << "\n";
+		return min_slowdown / (1e-10 + slowdown);
 	}
 
 	bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
