@@ -11,6 +11,7 @@
 #include "utils/DistributionTypes.h"
 
 using namespace std;
+
 /*
 函数：command_line_args
 功能：获取输入的参数input_file_path和workload_file_path
@@ -307,7 +308,6 @@ int main(int argc, char* argv[])
 	}
 
 	command_line_args(argv, ssd_config_file_path, workload_defs_file_path);
-
 	
 	Execution_Parameter_Set* exec_params = new Execution_Parameter_Set;
 	read_configuration_parameters(ssd_config_file_path, exec_params);

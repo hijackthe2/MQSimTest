@@ -8,7 +8,8 @@
 #include "Flash_Block_Manager_Base.h"
 #include "TSU_Base.h"
 #include "NVM_PHY_ONFI.h"
-
+#include <fstream>
+#include <iomanip>
 
 namespace SSD_Components
 {
@@ -44,6 +45,10 @@ namespace SSD_Components
 			unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int sector_no_per_page,
 			bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane,
 			bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold, int seed);
+		~GC_and_WL_Unit_Base()
+		{
+			gc_fs.close();
+		}
 		void Setup_triggers();
 		void Start_simulation();
 		void Validate_simulation_config();
@@ -95,6 +100,8 @@ namespace SSD_Components
 		unsigned int block_no_per_plane;
 		unsigned int pages_no_per_block;
 		unsigned int sector_no_per_page;
+
+		std::fstream gc_fs;
 	};
 }
 
