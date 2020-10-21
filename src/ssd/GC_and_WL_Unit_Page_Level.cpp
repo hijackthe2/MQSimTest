@@ -23,7 +23,7 @@ namespace SSD_Components
 		gc_fs.open("out/gc_info.txt", std::fstream::out);
 		gc_fs << std::fixed << std::setprecision(3);
 		gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
-			<< "block_valid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
+			<< "block_invalid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
 			<< "GC\n";
 	}
 	
@@ -147,10 +147,9 @@ namespace SSD_Components
 				double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
 				double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
 				double plane_free_page_percent = (double)pbke->Free_pages_count / pbke->Total_pages_count;
-				double plane_free_block_percent = (double)pbke->Free_block_pool.size() / block_no_per_plane;
-
+				double plane_free_block_percent = (double)free_block_pool_size / block_no_per_plane;
 				// block
-				double block_valid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
+				double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
 
 				// proportional slowdown
 				double proportional_slowdown = ((TSU_OutOfOrder*)tsu)->proportional_slowdown(block->Stream_id);
@@ -160,10 +159,13 @@ namespace SSD_Components
 				bool has_gc_transaction = ((TSU_OutOfOrder*)tsu)->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
 
 				gc_fs << plane_invalid_page_percent << "\t" << plane_valid_page_percent << "\t" << plane_free_page_percent << "\t"
-					<< plane_free_block_percent << "\t" << block_valid_page_percent << "\t" << proportional_slowdown << "\t"
-					<< has_gc_transaction << "\t" << 1 << "\n";
+					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << proportional_slowdown << "\t"
+					<< has_gc_transaction << "\t" << 1 << std::endl;
 
 				Stats::Total_gc_executions++;
+				std::cout << "gc\t" << (double)free_block_pool_size / block_no_per_plane << "\t"
+					<< free_block_pool_size << "\t" << block_no_per_plane << "\t"
+					<< pbke->Free_block_pool.size() << "\n";
 				tsu->Prepare_for_transaction_submit();
 
 				NVM_Transaction_Flash_ER* gc_erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, pbke->Blocks[gc_candidate_block_id].Stream_id, gc_candidate_address);
