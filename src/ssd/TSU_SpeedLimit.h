@@ -85,20 +85,13 @@ namespace SSD_Components
 		const unsigned int GC_FLIN = 1000;
 
 		void estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_count);
-		void estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_read_count, unsigned long remain_write_count);
 		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count);
-		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_read_total_count, unsigned long* remain_write_total_count);
+		void adjust_alone_time(NVM_Transaction_Flash* dispatched_transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		void service_transaction(NVM::FlashMemory::Flash_Chip* chip);
-
-		void buffering(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* buffer, Flash_Transaction_Queue* queue);
-		bool facts_service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
-		bool facts_service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
-		bool facts_service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
-		void facts_service_transaction(NVM::FlashMemory::Flash_Chip* chip);
 	};
 }
 

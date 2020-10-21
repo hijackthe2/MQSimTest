@@ -162,10 +162,12 @@ namespace SSD_Components
 					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << proportional_slowdown << "\t"
 					<< has_gc_transaction << "\t" << 1 << std::endl;
 
+				if (Stats::Total_gc_executions % 100 == 0)
+				{
+					std::cout << "gc\t" << (double)free_block_pool_size / block_no_per_plane << "\t"
+						<< free_block_pool_size << "\t" << block_no_per_plane << "\n";
+				}
 				Stats::Total_gc_executions++;
-				std::cout << "gc\t" << (double)free_block_pool_size / block_no_per_plane << "\t"
-					<< free_block_pool_size << "\t" << block_no_per_plane << "\t"
-					<< pbke->Free_block_pool.size() << "\n";
 				tsu->Prepare_for_transaction_submit();
 
 				NVM_Transaction_Flash_ER* gc_erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, pbke->Blocks[gc_candidate_block_id].Stream_id, gc_candidate_address);
