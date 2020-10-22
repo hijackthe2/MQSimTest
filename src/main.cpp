@@ -9,8 +9,11 @@
 #include "exec/Host_System.h"
 #include "utils/rapidxml/rapidxml.hpp"
 #include "utils/DistributionTypes.h"
+#include "exec/Global.h"
 
 using namespace std;
+
+fstream gc_fs;
 
 /*
 º¯Êý£ºcommand_line_args
@@ -313,6 +316,12 @@ int main(int argc, char* argv[])
 	read_configuration_parameters(ssd_config_file_path, exec_params);
 	std::vector<std::vector<IO_Flow_Parameter_Set*>*>* io_scenarios = read_workload_definitions(workload_defs_file_path);
 
+	gc_fs.open("out/gc_info.txt", std::fstream::out);
+	gc_fs << std::fixed << std::setprecision(3);
+	gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
+		<< "block_invalid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
+		<< "GC" << endl;
+
 	int cntr = 1;
 	for (auto io_scen = io_scenarios->begin(); io_scen != io_scenarios->end(); io_scen++, cntr++)
 	{
@@ -348,5 +357,6 @@ int main(int argc, char* argv[])
 	}
 
 	//cin.get();
+	gc_fs.close();
 	return 0;
 }

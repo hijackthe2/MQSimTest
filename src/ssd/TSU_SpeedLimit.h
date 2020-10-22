@@ -92,6 +92,10 @@ namespace SSD_Components
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		void service_transaction(NVM::FlashMemory::Flash_Chip* chip);
+
+		bool service_read_transaction0(NVM::FlashMemory::Flash_Chip* chip);
+		bool service_write_transaction0(NVM::FlashMemory::Flash_Chip* chip);
+		bool serviced_erase_transaction0(NVM::FlashMemory::Flash_Chip* chip);
 	};
 }
 

@@ -20,11 +20,6 @@ namespace SSD_Components
 			dynamic_wearleveling_enabled, static_wearleveling_enabled, static_wearleveling_threshold, seed)
 	{
 		rga_set_size = (unsigned int)log2(block_no_per_plane);
-		gc_fs.open("out/gc_info.txt", std::fstream::out);
-		gc_fs << std::fixed << std::setprecision(3);
-		gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
-			<< "block_invalid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
-			<< "GC\n";
 	}
 	
 	bool GC_and_WL_Unit_Page_Level::GC_is_in_urgent_mode(const NVM::FlashMemory::Flash_Chip* chip)
@@ -162,10 +157,10 @@ namespace SSD_Components
 					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << proportional_slowdown << "\t"
 					<< has_gc_transaction << "\t" << 1 << std::endl;
 
-				if (Stats::Total_gc_executions % 100 == 0)
+				if (Stats::Total_gc_executions % 1000 == 0)
 				{
 					std::cout << "gc\t" << (double)free_block_pool_size / block_no_per_plane << "\t"
-						<< free_block_pool_size << "\t" << block_no_per_plane << "\n";
+						<< free_block_pool_size << "\n";
 				}
 				Stats::Total_gc_executions++;
 				tsu->Prepare_for_transaction_submit();

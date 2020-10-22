@@ -247,6 +247,11 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
+		if (transaction->Source == Transaction_Source_Type::GC_WL)
+		{
+			std::cout << "erase\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
+				<< _NVMController->Expected_command_time(transaction) << "\n";
+		}
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;
 		total_count[transaction->Stream_id] += 1;
@@ -531,10 +536,26 @@ namespace SSD_Components
 			+ _NVMController->Expected_command_time(dispatched_transaction);
 		switch (dispatched_transaction->Type)
 		{
+		case Transaction_Type::READ:
+			adjust_time += adjust_time / 2;
+			break;
+		case Transaction_Type::WRITE:
+			adjust_time /= 4;
+			break;
 		default:
 			break;
-		} 
-		
+		}
+		for (auto it = std::next(queue->begin()); it != queue->end(); ++it)
+		{
+			if ((*it)->Stream_id == dispatched_transaction->Stream_id)
+			{
+				(*it)->alone_time += adjust_time;
+			}
+		}
+		for (auto it = buffer->begin(); it != buffer->end(); ++it)
+		{
+			(*it)->alone_time += adjust_time;
+		}
 	}
 
 	bool TSU_SpeedLimit::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
@@ -621,6 +642,7 @@ namespace SSD_Components
 								(*it)->backend_time = Simulator->Time();
 								remain_in_read_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 							}
+							adjust_alone_time(*it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
 							(*it)->SuspendRequired = suspensionRequired;
 							plane_vector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
@@ -732,6 +754,7 @@ namespace SSD_Components
 								(*it)->backend_time = Simulator->Time();
 								remain_in_write_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 							}
+							adjust_alone_time(*it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
 							(*it)->SuspendRequired = suspensionRequired;
 							plane_vector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
@@ -819,6 +842,11 @@ namespace SSD_Components
 			speed_limit(UserReadTRQueue, UserReadTRBuffer, UserReadTRCount, user_read_limit_speed, user_read_idx);
 			speed_limit(UserWriteTRQueue, UserWriteTRBuffer, UserWriteTRCount, user_write_limit_speed, user_write_idx);
 		}
+		if (!service_read_transaction0(chip))
+			if (!service_write_transaction0(chip))
+				serviced_erase_transaction0(chip);
+		return;
+
 		if (!MappingReadTRQueue[chip->ChannelID][chip->ChipID].empty())
 		{
 			transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_front(
@@ -898,6 +926,290 @@ namespace SSD_Components
 		}
 	}
 
+	bool TSU_SpeedLimit::service_read_transaction0(NVM::FlashMemory::Flash_Chip* chip)
+	{
+		Flash_Transaction_Queue* sourceQueue1 = NULL, * sourceQueue2 = NULL;
+
+		if (MappingReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)//Flash transactions that are related to FTL mapping data have the highest priority
+		{
+			sourceQueue1 = &MappingReadTRQueue[chip->ChannelID][chip->ChipID];
+			if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip) && GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				sourceQueue2 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
+			else if (UserReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				sourceQueue2 = &UserReadTRQueue[chip->ChannelID][chip->ChipID];
+		}
+		else if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip))//If flash transactions related to GC are prioritzed (non-preemptive execution mode of GC), then GC queues are checked first
+		{
+			if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+			{
+				sourceQueue1 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
+				if (UserReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+					sourceQueue2 = &UserReadTRQueue[chip->ChannelID][chip->ChipID];
+			}
+			else if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				return false;
+			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				return false;
+			else if (UserReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				sourceQueue1 = &UserReadTRQueue[chip->ChannelID][chip->ChipID];
+			else return false;
+		}
+		else //If GC is currently executed in the preemptive mode, then user IO transaction queues are checked first
+		{
+			if (UserReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+			{
+				sourceQueue1 = &UserReadTRQueue[chip->ChannelID][chip->ChipID];
+				if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+					sourceQueue2 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
+			}
+			else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				return false;
+			else if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				sourceQueue1 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
+			else return false;
+		}
+
+		bool suspensionRequired = false;
+		ChipStatus cs = _NVMController->GetChipStatus(chip);
+		switch (cs)
+		{
+		case ChipStatus::IDLE:
+			break;
+		case ChipStatus::WRITING:
+			if (!programSuspensionEnabled || _NVMController->HasSuspendedCommand(chip))
+				return false;
+			if (_NVMController->Expected_finish_time(chip) - Simulator->Time() < writeReasonableSuspensionTimeForRead)
+				return false;
+			suspensionRequired = true;
+		case ChipStatus::ERASING:
+			if (!eraseSuspensionEnabled || _NVMController->HasSuspendedCommand(chip))
+				return false;
+			if (_NVMController->Expected_finish_time(chip) - Simulator->Time() < eraseReasonableSuspensionTimeForRead)
+				return false;
+			suspensionRequired = true;
+		default:
+			return false;
+		}
+
+		flash_die_ID_type dieID = sourceQueue1->front()->Address.DieID;
+		flash_page_ID_type pageID = sourceQueue1->front()->Address.PageID;
+		unsigned int planeVector = 0;
+		for (unsigned int i = 0; i < die_no_per_chip; i++)
+		{
+			transaction_dispatch_slots.clear();
+			planeVector = 0;
+
+			for (Flash_Transaction_Queue::iterator it = sourceQueue1->begin(); it != sourceQueue1->end();)
+			{
+				if ((*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+				{
+					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
+					{
+						if ((*it)->Source == Transaction_Source_Type::CACHE
+							|| (*it)->Source == Transaction_Source_Type::USERIO
+							|| (*it)->Source == Transaction_Source_Type::MAPPING)
+						{
+							UserReadTRCount[(*it)->Stream_id]--;
+							(*it)->backend_time = Simulator->Time();
+							remain_in_read_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
+						}
+						adjust_alone_time(*it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
+						(*it)->SuspendRequired = suspensionRequired;
+						planeVector |= 1 << (*it)->Address.PlaneID;
+						transaction_dispatch_slots.push_back(*it);
+						sourceQueue1->remove(it++);
+						continue;
+					}
+				}
+				it++;
+			}
+
+			if (sourceQueue2 != NULL && transaction_dispatch_slots.size() < plane_no_per_die)
+				for (Flash_Transaction_Queue::iterator it = sourceQueue2->begin(); it != sourceQueue2->end();)
+				{
+					if ((*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+					{
+						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
+						{
+							if ((*it)->Source == Transaction_Source_Type::CACHE
+								|| (*it)->Source == Transaction_Source_Type::USERIO
+								|| (*it)->Source == Transaction_Source_Type::MAPPING)
+							{
+								UserReadTRCount[(*it)->Stream_id]--;
+								(*it)->backend_time = Simulator->Time();
+								remain_in_read_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
+							}
+							adjust_alone_time(*it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
+							(*it)->SuspendRequired = suspensionRequired;
+							planeVector |= 1 << (*it)->Address.PlaneID;
+							transaction_dispatch_slots.push_back(*it);
+							sourceQueue2->remove(it++);
+							continue;
+						}
+					}
+					it++;
+				}
+
+			if (transaction_dispatch_slots.size() > 0)
+				_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+			transaction_dispatch_slots.clear();
+			dieID = (dieID + 1) % die_no_per_chip;
+		}
+
+		return true;
+	}
+
+	bool TSU_SpeedLimit::service_write_transaction0(NVM::FlashMemory::Flash_Chip* chip)
+	{
+		Flash_Transaction_Queue* sourceQueue1 = NULL, * sourceQueue2 = NULL;
+
+		if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip))//If flash transactions related to GC are prioritzed (non-preemptive execution mode of GC), then GC queues are checked first
+		{
+			if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+			{
+				sourceQueue1 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
+				if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+					sourceQueue2 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID];
+			}
+			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				return false;
+			else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID];
+			else return false;
+		}
+		else //If GC is currently executed in the preemptive mode, then user IO transaction queues are checked first
+		{
+			if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+			{
+				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID];
+				if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+					sourceQueue2 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
+			}
+			else if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				sourceQueue1 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
+			else return false;
+		}
+
+
+		bool suspensionRequired = false;
+		ChipStatus cs = _NVMController->GetChipStatus(chip);
+		switch (cs)
+		{
+		case ChipStatus::IDLE:
+			break;
+		case ChipStatus::ERASING:
+			if (!eraseSuspensionEnabled || _NVMController->HasSuspendedCommand(chip))
+				return false;
+			if (_NVMController->Expected_finish_time(chip) - Simulator->Time() < eraseReasonableSuspensionTimeForWrite)
+				return false;
+			suspensionRequired = true;
+		default:
+			return false;
+		}
+
+		flash_die_ID_type dieID = sourceQueue1->front()->Address.DieID;
+		flash_page_ID_type pageID = sourceQueue1->front()->Address.PageID;
+		unsigned int planeVector = 0;
+		for (unsigned int i = 0; i < die_no_per_chip; i++)
+		{
+			transaction_dispatch_slots.clear();
+			planeVector = 0;
+
+			for (Flash_Transaction_Queue::iterator it = sourceQueue1->begin(); it != sourceQueue1->end(); )
+			{
+				if (((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+				{
+					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
+					{
+						if ((*it)->Source == Transaction_Source_Type::CACHE
+							|| (*it)->Source == Transaction_Source_Type::USERIO
+							/*|| (*it)->Source == Transaction_Source_Type::MAPPING*/)
+						{
+							UserWriteTRCount[(*it)->Stream_id]--;
+							serviced_writes_since_last_GC[chip->ChannelID][chip->ChipID][(*it)->Stream_id]++;
+							(*it)->backend_time = Simulator->Time();
+							remain_in_write_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
+						}
+						adjust_alone_time(*it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
+						(*it)->SuspendRequired = suspensionRequired;
+						planeVector |= 1 << (*it)->Address.PlaneID;
+						transaction_dispatch_slots.push_back(*it);
+						sourceQueue1->remove(it++);
+						continue;
+					}
+				}
+				it++;
+			}
+
+			if (sourceQueue2 != NULL)
+				for (Flash_Transaction_Queue::iterator it = sourceQueue2->begin(); it != sourceQueue2->end(); )
+				{
+					if (((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+					{
+						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
+						{
+							if ((*it)->Source == Transaction_Source_Type::CACHE
+								|| (*it)->Source == Transaction_Source_Type::USERIO
+								/*|| (*it)->Source == Transaction_Source_Type::MAPPING*/)
+							{
+								UserWriteTRCount[(*it)->Stream_id]--;
+								//serviced_writes_since_last_GC[chip->ChannelID][chip->ChipID][(*it)->Stream_id]++;
+								(*it)->backend_time = Simulator->Time();
+								remain_in_write_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
+							}
+							adjust_alone_time(*it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
+							(*it)->SuspendRequired = suspensionRequired;
+							planeVector |= 1 << (*it)->Address.PlaneID;
+							transaction_dispatch_slots.push_back(*it);
+							sourceQueue2->remove(it++);
+							continue;
+						}
+					}
+					it++;
+				}
+
+			if (transaction_dispatch_slots.size() > 0)
+				_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+			transaction_dispatch_slots.clear();
+			dieID = (dieID + 1) % die_no_per_chip;
+		}
+		return true;
+	}
+
+	bool TSU_SpeedLimit::serviced_erase_transaction0(NVM::FlashMemory::Flash_Chip* chip)
+	{
+		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
+			return false;
+
+		Flash_Transaction_Queue* source_queue = &GCEraseTRQueue[chip->ChannelID][chip->ChipID];
+		if (source_queue->size() == 0)
+			return false;
+
+		flash_die_ID_type dieID = source_queue->front()->Address.DieID;
+		unsigned int planeVector = 0;
+		for (unsigned int i = 0; i < die_no_per_chip; i++)
+		{
+			transaction_dispatch_slots.clear();
+			planeVector = 0;
+
+			for (Flash_Transaction_Queue::iterator it = source_queue->begin(); it != source_queue->end(); )
+			{
+				if (((NVM_Transaction_Flash_ER*)*it)->Page_movement_activities.size() == 0 && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+				{
+					planeVector |= 1 << (*it)->Address.PlaneID;
+					transaction_dispatch_slots.push_back(*it);
+					source_queue->remove(it++);
+				}
+				it++;
+			}
+			if (transaction_dispatch_slots.size() > 0)
+				_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+			transaction_dispatch_slots.clear();
+			dieID = (dieID + 1) % die_no_per_chip;
+		}
+		return true;
+	}
+
 	void TSU_SpeedLimit::estimate_proportional_wait(NVM_Transaction_Flash_RD* read_slot,
 		NVM_Transaction_Flash_WR* write_slot, double& pw_read, double& pw_write, int GCM, flash_channel_ID_type channel_id,
 		flash_chip_ID_type chip_id)
@@ -909,15 +1221,15 @@ namespace SSD_Components
 		pw_write = -1;
 		if (read_slot)
 		{
-			read_cost = _NVMController->Expected_transfer_time(read_slot) + _NVMController->Expected_finish_time(read_slot);
+			read_cost = _NVMController->Expected_transfer_time(read_slot) + _NVMController->Expected_command_time(read_slot);
 		}
 		if (write_slot)
 		{
-			write_cost = _NVMController->Expected_transfer_time(write_slot) + _NVMController->Expected_finish_time(write_slot);
+			write_cost = _NVMController->Expected_transfer_time(write_slot) + _NVMController->Expected_command_time(write_slot);
 		}
 		if (!GCEraseTRQueue[channel_id][chip_id].empty())
 		{
-			T_erase_memory = _NVMController->Expected_finish_time(GCEraseTRQueue[channel_id][chip_id].front());
+			T_erase_memory = _NVMController->Expected_command_time(GCEraseTRQueue[channel_id][chip_id].front());
 		}
 		sim_time_type T_GC = GCM == 0 ? 0 : GCM * (read_cost + write_cost) + T_erase_memory;
 		if (read_cost != 0)

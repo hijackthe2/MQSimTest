@@ -483,6 +483,9 @@
     <ClInclude Include="src\ssd\TSU_FACTS.h">
       <Filter>ssd</Filter>
     </ClInclude>
+    <ClInclude Include="src\exec\Global.h">
+      <Filter>exec</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
