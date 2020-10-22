@@ -15,11 +15,6 @@ using namespace std;
 
 fstream gc_fs;
 
-/*
-º¯Êý£ºcommand_line_args
-¹¦ÄÜ£º»ñÈ¡ÊäÈëµÄ²ÎÊýinput_file_pathºÍworkload_file_path
-ÊäÈë£ºargv[] input_file_path workload_file_path ÒýÓÃ²ÎÊýµ÷ÓÃ
-*/
 void command_line_args(char* argv[], string& input_file_path, string& workload_file_path)
 {
 
@@ -42,22 +37,18 @@ void command_line_args(char* argv[], string& input_file_path, string& workload_f
 		}
 	}
 }
-/*
-¹¦ÄÜ£º¶ÁÈ¡Æ÷¼þµÄÅäÖÃ²ÎÊý
-ÊäÈë£ºÂ·¾¶£¨ssd_config_file_path£©£¬Ö´ÐÐ²ÎÊý£¨exec_params£©
-Ö´ÐÐ²ÎÊý£¨exec_params£©Ö¸Õëµ÷ÓÃ£¬ËùÒÔÊÇ¿ÉÒÔ±»ÐÞ¸ÄµÄ
-*/
+
 void read_configuration_parameters(const string ssd_config_file_path, Execution_Parameter_Set* exec_params)
 {
 	ifstream ssd_config_file;
-	ssd_config_file.open(ssd_config_file_path.c_str());//c_strc()·µ»ØÖ¸Õë³£Á¿
+	ssd_config_file.open(ssd_config_file_path.c_str());//c_strc()ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ë³£ï¿½ï¿½
 
 	if (!ssd_config_file) {
 		PRINT_MESSAGE("The specified SSD configuration file does not exist.")
 		PRINT_MESSAGE("Using MQSim's default configuration.")
 		PRINT_MESSAGE("Writing the default configuration parameters to the expected configuration file.")
 
-		Utils::XmlWriter xmlwriter;//cÓïÑÔ¶ÁÈ¡xmlÎÄ¼þ
+		Utils::XmlWriter xmlwriter;//cï¿½ï¿½ï¿½Ô¶ï¿½È¡xmlï¿½Ä¼ï¿½
 		string tmp;
 		xmlwriter.Open(ssd_config_file_path.c_str());
 		exec_params->XML_serialize(xmlwriter);
@@ -76,7 +67,7 @@ void read_configuration_parameters(const string ssd_config_file_path, Execution_
 			char* temp_string = new char[line.length() + 1];
 			strcpy(temp_string, line.c_str());
 			doc.parse<0>(temp_string);
-			rapidxml::xml_node<> *mqsim_config = doc.first_node("Execution_Parameter_Set");//¸ù½Úµã
+			rapidxml::xml_node<> *mqsim_config = doc.first_node("Execution_Parameter_Set");//ï¿½ï¿½ï¿½Úµï¿½
 			if (mqsim_config != NULL)
 			{
 				exec_params = new Execution_Parameter_Set;
@@ -104,17 +95,15 @@ void read_configuration_parameters(const string ssd_config_file_path, Execution_
 
 	ssd_config_file.close();
 }
-/*
-¹¦ÄÜ£ºµ¼Èëworkload_defs_file_pathµÄ²ÎÊý
-*/
+
 std::vector<std::vector<IO_Flow_Parameter_Set*>*>* read_workload_definitions(const string workload_defs_file_path)
 {
 	std::vector<std::vector<IO_Flow_Parameter_Set*>*>* io_scenarios = new std::vector<std::vector<IO_Flow_Parameter_Set*>*>;
 
 	ifstream workload_defs_file;
 	workload_defs_file.open(workload_defs_file_path.c_str());
-	bool use_default_workloads = true;//Ä¬ÈÏÊ¹ÓÃ×Ô´øµÄ²ÎÊý£¬³ý·Ç´ïµ½Ò»¶¨µÄÌõ¼þ£¬±£Ö¤³ÌÐòµÄÕý³£Ê¹ÓÃ
-	//ÊäÈë²ÎÊýworkload_defs_file_pathÎÞ·¨´ò¿ª
+	bool use_default_workloads = true;//Ä¬ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½Ô´ï¿½ï¿½Ä²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç´ïµ½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½workload_defs_file_pathï¿½Þ·ï¿½ï¿½ï¿½
 	if (!workload_defs_file) {
 		PRINT_MESSAGE("The specified workload definition file does not exist!");
 		PRINT_MESSAGE("Using MQSim's default workload definitions.");
@@ -165,7 +154,6 @@ std::vector<std::vector<IO_Flow_Parameter_Set*>*>* read_workload_definitions(con
 			}
 		}
 	}
-	//Ê¹ÓÃÄ¬ÈÏµÄ²ÎÊýÉèÖÃ
 	if (use_default_workloads)
 	{
 		std::vector<IO_Flow_Parameter_Set*>* scenario_definition = new std::vector<IO_Flow_Parameter_Set*>;
@@ -262,10 +250,7 @@ std::vector<std::vector<IO_Flow_Parameter_Set*>*>* read_workload_definitions(con
 
 	return io_scenarios;
 }
-/*
-¹¦ÄÜ£ºÊä³ö½á¹û
-ÊäÈë£ºSSD_Device& ssd, Host_System& host, Êä³öÎÄ¼þÂ·¾¶output_file_path
-*/
+
 void collect_results(SSD_Device& ssd, Host_System& host, const char* output_file_path)
 {
 	Utils::XmlWriter xmlwriter;
@@ -302,7 +287,7 @@ void print_help()
 int main(int argc, char* argv[])
 {
 	string ssd_config_file_path, workload_defs_file_path;
-	//ssd_config_file_pathºÍworkload_defs_file_pathÊÇÅäÖÃÎÄ¼þ¡£
+	//ssd_config_file_pathï¿½ï¿½workload_defs_file_pathï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
 	if (argc != 5)
 	{
 		// MQSim expects 2 arguments: 1) the path to the SSD configuration definition file, and 2) the path to the workload definition file

@@ -9,6 +9,7 @@
 #include "FTL.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include "Flash_Transaction_Queue.h"
+#include "limits.h"
 
 namespace SSD_Components
 {

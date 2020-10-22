@@ -5,6 +5,7 @@
 #include "TSU_Base.h"
 #include "NVM_Transaction_Flash.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
+#include <algorithm>
 
 namespace SSD_Components
 {
@@ -27,6 +28,8 @@ namespace SSD_Components
 		void Validate_simulation_config();
 		void Execute_simulator_event(MQSimEngine::Sim_Event* event);
 		void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
+		double proportional_slowdown(stream_id_type gc_stream_id);
+		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	private:
 		Flash_Transaction_Queue** UserReadTRQueue;
@@ -86,7 +89,7 @@ namespace SSD_Components
 
 		void estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_count);
 		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count);
-		void adjust_alone_time(NVM_Transaction_Flash* dispatched_transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
+		void adjust_alone_time(const Flash_Transaction_Queue::iterator& dispatched_it, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
