@@ -247,7 +247,7 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
-		if (transaction->Source == Transaction_Source_Type::GC_WL)
+		if (transaction->Type == Transaction_Type::ERASE)
 		{
 			std::cout << "erase\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
 				<< _NVMController->Expected_command_time(transaction) << "\n";
@@ -549,12 +549,10 @@ namespace SSD_Components
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
-	void TSU_SpeedLimit::adjust_alone_time(const Flash_Transaction_Queue::iterator& dispatched_it, Flash_Transaction_Queue* queue,
-		Flash_Transaction_Queue* buffer)
+	void TSU_SpeedLimit::adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
+		Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer)
 	{
-		sim_time_type adjust_time = _NVMController->Expected_transfer_time(*dispatched_it)
-			+ _NVMController->Expected_command_time(*dispatched_it);
-		switch ((*dispatched_it)->Type)
+		switch (type)
 		{
 		case Transaction_Type::READ:
 			adjust_time += adjust_time / 2;
@@ -567,7 +565,7 @@ namespace SSD_Components
 		}
 		for (auto it = queue->begin(); it != queue->end(); ++it)
 		{
-			if (dispatched_it != it && (*it)->Stream_id == (*dispatched_it)->Stream_id)
+			if (dispatched_stream_id == (*it)->Stream_id)
 			{
 				(*it)->alone_time += adjust_time;
 			}
@@ -662,11 +660,22 @@ namespace SSD_Components
 								(*it)->backend_time = Simulator->Time();
 								remain_in_read_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 							}
-							adjust_alone_time(it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
+							stream_id_type dispatched_stream_id = (*it)->Stream_id;
+							sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+								+ _NVMController->Expected_command_time(*it);
+							Transaction_Source_Type source = (*it)->Source;
 							(*it)->SuspendRequired = suspensionRequired;
 							plane_vector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
 							(*queue)->remove(it++);
+							if (source == Transaction_Source_Type::MAPPING
+								|| source == Transaction_Source_Type::GC_WL)
+							{
+								adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ,
+									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+							}
+							adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ,
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 							continue;
 						}
 					}
@@ -774,11 +783,23 @@ namespace SSD_Components
 								(*it)->backend_time = Simulator->Time();
 								remain_in_write_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 							}
-							adjust_alone_time(it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
+							stream_id_type dispatched_stream_id = (*it)->Stream_id;
+							sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+								+ _NVMController->Expected_command_time(*it);
+							Transaction_Type type = (*it)->Type;
+							Transaction_Source_Type source = (*it)->Source;
 							(*it)->SuspendRequired = suspensionRequired;
 							plane_vector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
 							(*queue)->remove(it++);
+							if (source == Transaction_Source_Type::MAPPING
+								|| source == Transaction_Source_Type::GC_WL)
+							{
+								adjust_alone_time(dispatched_stream_id, adjust_time, type,
+									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+							}
+							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 							continue;
 						}
 					}
@@ -835,9 +856,17 @@ namespace SSD_Components
 					}
 					if ((*it)->Address.BlockID == block_id)
 					{
+						stream_id_type dispatched_stream_id = (*it)->Stream_id;
+						sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+							+ _NVMController->Expected_command_time(*it);
+						Transaction_Type type = (*it)->Type;
 						plane_vector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						source_queue->remove(it++);
+						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 						continue;
 					}
 				}
@@ -1033,11 +1062,23 @@ namespace SSD_Components
 							(*it)->backend_time = Simulator->Time();
 							remain_in_read_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 						}
-						adjust_alone_time(it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
+						stream_id_type dispatched_stream_id = (*it)->Stream_id;
+						sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+							+ _NVMController->Expected_command_time(*it);
+						Transaction_Type type = (*it)->Type;
+						Transaction_Source_Type source = (*it)->Source;
 						(*it)->SuspendRequired = suspensionRequired;
 						planeVector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						sourceQueue1->remove(it++);
+						if (source == Transaction_Source_Type::MAPPING
+							|| source == Transaction_Source_Type::GC_WL)
+						{
+							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+						}
+						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 						continue;
 					}
 				}
@@ -1059,11 +1100,23 @@ namespace SSD_Components
 								(*it)->backend_time = Simulator->Time();
 								remain_in_read_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 							}
-							adjust_alone_time(it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
+							stream_id_type dispatched_stream_id = (*it)->Stream_id;
+							sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+								+ _NVMController->Expected_command_time(*it);
+							Transaction_Type type = (*it)->Type;
+							Transaction_Source_Type source = (*it)->Source;
 							(*it)->SuspendRequired = suspensionRequired;
 							planeVector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
 							sourceQueue2->remove(it++);
+							if (source == Transaction_Source_Type::MAPPING
+								|| source == Transaction_Source_Type::GC_WL)
+							{
+								adjust_alone_time(dispatched_stream_id, adjust_time, type,
+									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+							}
+							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 							continue;
 						}
 					}
@@ -1150,11 +1203,23 @@ namespace SSD_Components
 							(*it)->backend_time = Simulator->Time();
 							remain_in_write_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 						}
-						adjust_alone_time(it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
+						stream_id_type dispatched_stream_id = (*it)->Stream_id;
+						sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+							+ _NVMController->Expected_command_time(*it);
+						Transaction_Type type = (*it)->Type;
+						Transaction_Source_Type source = (*it)->Source;
 						(*it)->SuspendRequired = suspensionRequired;
 						planeVector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						sourceQueue1->remove(it++);
+						if (source == Transaction_Source_Type::MAPPING
+							|| source == Transaction_Source_Type::GC_WL)
+						{
+							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+						}
+						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 						continue;
 					}
 				}
@@ -1177,11 +1242,23 @@ namespace SSD_Components
 								(*it)->backend_time = Simulator->Time();
 								remain_in_write_queue_count[chip->ChannelID][chip->ChipID][(*it)->Stream_id]--;
 							}
-							adjust_alone_time(it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
+							stream_id_type dispatched_stream_id = (*it)->Stream_id;
+							sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+								+ _NVMController->Expected_command_time(*it);
+							Transaction_Type type = (*it)->Type;
+							Transaction_Source_Type source = (*it)->Source;
 							(*it)->SuspendRequired = suspensionRequired;
 							planeVector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
 							sourceQueue2->remove(it++);
+							if (source == Transaction_Source_Type::MAPPING
+								|| source == Transaction_Source_Type::GC_WL)
+							{
+								adjust_alone_time(dispatched_stream_id, adjust_time, type,
+									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+							}
+							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 							continue;
 						}
 					}
@@ -1216,9 +1293,17 @@ namespace SSD_Components
 			{
 				if (((NVM_Transaction_Flash_ER*)*it)->Page_movement_activities.size() == 0 && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
 				{
+					stream_id_type dispatched_stream_id = (*it)->Stream_id;
+					sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+						+ _NVMController->Expected_command_time(*it);
+					Transaction_Type type = (*it)->Type;
 					planeVector |= 1 << (*it)->Address.PlaneID;
 					transaction_dispatch_slots.push_back(*it);
 					source_queue->remove(it++);
+					adjust_alone_time(dispatched_stream_id, adjust_time, type,
+						&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+					adjust_alone_time(dispatched_stream_id, adjust_time, type,
+						&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 				}
 				it++;
 			}
