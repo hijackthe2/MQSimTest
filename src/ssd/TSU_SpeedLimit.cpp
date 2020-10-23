@@ -247,11 +247,15 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
-		if (transaction->Type == Transaction_Type::ERASE)
+		/*if (transaction->Source == Transaction_Source_Type::GC_WL)
 		{
-			std::cout << "erase\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
-				<< _NVMController->Expected_command_time(transaction) << "\n";
-		}
+			std::cout << (int)transaction->Type << "\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
+				<< _NVMController->Expected_command_time(transaction) << "\t"
+				<< _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction) << "\t"
+				<< Simulator->Time() - transaction->Issue_time << "\t"
+				<< (double)(Simulator->Time() - transaction->Issue_time) / (_NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction))
+				<< "\n";
+		}*/
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;
 		total_count[transaction->Stream_id] += 1;
@@ -550,18 +554,37 @@ namespace SSD_Components
 	}
 
 	void TSU_SpeedLimit::adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
-		Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer)
+		Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer)
 	{
-		switch (type)
+		if (source == Transaction_Source_Type::CACHE || source == Transaction_Source_Type::USERIO)
 		{
-		case Transaction_Type::READ:
-			adjust_time += adjust_time / 2;
-			break;
-		case Transaction_Type::WRITE:
-			adjust_time /= 4;
-			break;
-		default:
-			break;
+			if (type == Transaction_Type::READ)
+			{
+				adjust_time += adjust_time / 2;
+			}
+			else
+			{
+				adjust_time /= 4;
+			}
+		}
+		else if (source == Transaction_Source_Type::GC_WL)
+		{
+			if (type == Transaction_Type::READ)
+			{
+				adjust_time *= 3;
+			}
+			else if (type == Transaction_Type::WRITE)
+			{
+				//adjust_time *= 2;
+			}
+			else if (type == Transaction_Type::ERASE)
+			{
+				adjust_time *= 2;
+			}
+		}
+		else if (source == Transaction_Source_Type::MAPPING)
+		{
+
 		}
 		for (auto it = queue->begin(); it != queue->end(); ++it)
 		{
@@ -671,10 +694,10 @@ namespace SSD_Components
 							if (source == Transaction_Source_Type::MAPPING
 								|| source == Transaction_Source_Type::GC_WL)
 							{
-								adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ,
+								adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ, source,
 									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 							}
-							adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ,
+							adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ, source,
 								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 							continue;
 						}
@@ -795,10 +818,10 @@ namespace SSD_Components
 							if (source == Transaction_Source_Type::MAPPING
 								|| source == Transaction_Source_Type::GC_WL)
 							{
-								adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 							}
-							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 							continue;
 						}
@@ -863,9 +886,9 @@ namespace SSD_Components
 						plane_vector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						source_queue->remove(it++);
-						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+						adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
 							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
-						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+						adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
 							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 						continue;
 					}
@@ -1074,10 +1097,10 @@ namespace SSD_Components
 						if (source == Transaction_Source_Type::MAPPING
 							|| source == Transaction_Source_Type::GC_WL)
 						{
-							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 						}
-						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 						continue;
 					}
@@ -1112,10 +1135,10 @@ namespace SSD_Components
 							if (source == Transaction_Source_Type::MAPPING
 								|| source == Transaction_Source_Type::GC_WL)
 							{
-								adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 							}
-							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 							continue;
 						}
@@ -1215,10 +1238,10 @@ namespace SSD_Components
 						if (source == Transaction_Source_Type::MAPPING
 							|| source == Transaction_Source_Type::GC_WL)
 						{
-							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 						}
-						adjust_alone_time(dispatched_stream_id, adjust_time, type,
+						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 						continue;
 					}
@@ -1254,10 +1277,10 @@ namespace SSD_Components
 							if (source == Transaction_Source_Type::MAPPING
 								|| source == Transaction_Source_Type::GC_WL)
 							{
-								adjust_alone_time(dispatched_stream_id, adjust_time, type,
+								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 							}
-							adjust_alone_time(dispatched_stream_id, adjust_time, type,
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
 							continue;
 						}
@@ -1300,9 +1323,9 @@ namespace SSD_Components
 					planeVector |= 1 << (*it)->Address.PlaneID;
 					transaction_dispatch_slots.push_back(*it);
 					source_queue->remove(it++);
-					adjust_alone_time(dispatched_stream_id, adjust_time, type,
+					adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
 						&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
-					adjust_alone_time(dispatched_stream_id, adjust_time, type,
+					adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
 						&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
 				}
 				it++;

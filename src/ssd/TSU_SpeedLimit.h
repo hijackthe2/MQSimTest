@@ -90,7 +90,7 @@ namespace SSD_Components
 		void estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_count);
 		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count);
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
-			Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
+			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
