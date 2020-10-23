@@ -247,11 +247,11 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
-		if (transaction->Source == Transaction_Source_Type::GC_WL)
+		/*if (transaction->Source == Transaction_Source_Type::GC_WL)
 		{
 			std::cout << "erase\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
 				<< _NVMController->Expected_command_time(transaction) << "\n";
-		}
+		}*/
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;
 		total_count[transaction->Stream_id] += 1;
@@ -562,6 +562,8 @@ namespace SSD_Components
 		case Transaction_Type::WRITE:
 			adjust_time /= 4;
 			break;
+		/*case Transaction_Type::ERASE:
+			adjust_time*/
 		default:
 			break;
 		}
@@ -835,6 +837,8 @@ namespace SSD_Components
 					}
 					if ((*it)->Address.BlockID == block_id)
 					{
+						adjust_alone_time(it, &UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[(*it)->Stream_id]);
+						adjust_alone_time(it, &UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[(*it)->Stream_id]);
 						plane_vector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						source_queue->remove(it++);
