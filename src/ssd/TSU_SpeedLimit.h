@@ -29,6 +29,7 @@ namespace SSD_Components
 		void Execute_simulator_event(MQSimEngine::Sim_Event* event);
 		void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
 		double proportional_slowdown(stream_id_type gc_stream_id);
+		double fairness();
 		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	private:
@@ -91,6 +92,7 @@ namespace SSD_Components
 		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count);
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
 			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
+		int count = 0;
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);

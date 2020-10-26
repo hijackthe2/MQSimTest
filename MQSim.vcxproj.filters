@@ -495,4 +495,7 @@
     <Xml Include="ssdconfig.xml" />
     <Xml Include="workload.xml" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="out\gc_info.txt" />
+  </ItemGroup>
 </Project>

@@ -135,6 +135,8 @@ namespace SSD_Components
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_erase_operations.insert(gc_candidate_block_id);
+			std::cout << "gc page level gc check required\t" << block->Invalid_page_count << "\t"
+				<< block->Current_page_write_index << "\n";
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
 			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
@@ -160,7 +162,8 @@ namespace SSD_Components
 
 				if (Stats::Total_gc_executions % 1000 == 0)
 				{
-					std::cout << "gc\t" << (double)free_block_pool_size / block_no_per_plane << "\t"
+					std::cout << "gc\t" << Stats::Total_gc_executions << "\t"
+						<< (double)free_block_pool_size / block_no_per_plane << "\t"
 						<< free_block_pool_size << "\n";
 				}
 				Stats::Total_gc_executions++;
@@ -175,7 +178,7 @@ namespace SSD_Components
 					{
 						if (block_manager->Is_page_valid(block, pageID))
 						{
-							Stats::Total_page_movements_for_gc;
+							Stats::Total_page_movements_for_gc++;
 							gc_candidate_address.PageID = pageID;
 							if (use_copyback)
 							{

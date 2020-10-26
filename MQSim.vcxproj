@@ -182,6 +182,9 @@
     <Xml Include="ssdconfig.xml" />
     <Xml Include="workload.xml" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="out\gc_info.txt" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{DF6B928B-78A2-4285-BFF8-8136B4AEDB6A}</ProjectGuid>

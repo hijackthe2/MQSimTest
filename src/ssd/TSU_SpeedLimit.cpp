@@ -247,6 +247,14 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
+		if (transaction->Type == Transaction_Type::ERASE)
+		{
+			if (count % 1000 == 0)
+			{
+				std::cout << "tsu\t" << count << "\n";
+			}
+			++count;
+		}
 		/*if (transaction->Source == Transaction_Source_Type::GC_WL)
 		{
 			std::cout << (int)transaction->Type << "\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
@@ -354,7 +362,6 @@ namespace SSD_Components
 
 	double TSU_SpeedLimit::proportional_slowdown(stream_id_type gc_stream_id)
 	{
-		if (stream_count) return 0.0;
 		double min_slowdown = INT_MAX;
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
@@ -365,6 +372,21 @@ namespace SSD_Components
 		}
 		double slowdown = (double)shared_total_time[gc_stream_id] / (1e-10 + alone_total_time[gc_stream_id]);
 		return min_slowdown / (1e-10 + slowdown);
+	}
+
+	double TSU_SpeedLimit::fairness()
+	{
+		double min_slowdown = INT_MAX, max_slowdown = -1;
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			if (alone_total_time[stream_id])
+			{
+				double workload_slowdown = (double)shared_total_time[stream_id] / alone_total_time[stream_id];
+				min_slowdown = std::min(min_slowdown, workload_slowdown);
+				max_slowdown = std::max(max_slowdown, workload_slowdown);
+			}
+		}
+		return max_slowdown < 0 ? 1 : min_slowdown / max_slowdown;
 	}
 
 	size_t TSU_SpeedLimit::GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
