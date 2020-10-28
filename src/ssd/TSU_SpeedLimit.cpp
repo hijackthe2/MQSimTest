@@ -565,7 +565,8 @@ namespace SSD_Components
 	}
 
 	void TSU_SpeedLimit::adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
-		Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer)
+		Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer,
+		flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		if (source == Transaction_Source_Type::CACHE || source == Transaction_Source_Type::USERIO)
 		{
@@ -605,7 +606,10 @@ namespace SSD_Components
 		}
 		for (auto it = buffer->begin(); it != buffer->end(); ++it)
 		{
-			(*it)->alone_time += adjust_time;
+			if ((*it)->Address.ChannelID == channel_id && (*it)->Address.ChipID == chip_id)
+			{
+				(*it)->alone_time += adjust_time;
+			}
 		}
 	}
 
@@ -705,10 +709,12 @@ namespace SSD_Components
 								|| source == Transaction_Source_Type::GC_WL)
 							{
 								adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ, source,
-									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+									chip->ChannelID, chip->ChipID);
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, Transaction_Type::READ, source,
-								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+								chip->ChannelID, chip->ChipID);
 							continue;
 						}
 					}
@@ -829,10 +835,12 @@ namespace SSD_Components
 								|| source == Transaction_Source_Type::GC_WL)
 							{
 								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+									chip->ChannelID, chip->ChipID);
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+								chip->ChannelID, chip->ChipID);
 							continue;
 						}
 					}
@@ -897,9 +905,11 @@ namespace SSD_Components
 						transaction_dispatch_slots.push_back(*it);
 						source_queue->remove(it++);
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
-							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+							chip->ChannelID, chip->ChipID);
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
-							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+							chip->ChannelID, chip->ChipID);
 						continue;
 					}
 				}
@@ -1108,10 +1118,12 @@ namespace SSD_Components
 							|| source == Transaction_Source_Type::GC_WL)
 						{
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+								chip->ChannelID, chip->ChipID);
 						}
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+							chip->ChannelID, chip->ChipID);
 						continue;
 					}
 				}
@@ -1146,10 +1158,12 @@ namespace SSD_Components
 								|| source == Transaction_Source_Type::GC_WL)
 							{
 								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+									&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+									chip->ChannelID, chip->ChipID);
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+								chip->ChannelID, chip->ChipID);
 							continue;
 						}
 					}
@@ -1249,10 +1263,12 @@ namespace SSD_Components
 							|| source == Transaction_Source_Type::GC_WL)
 						{
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+								chip->ChannelID, chip->ChipID);
 						}
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+							chip->ChannelID, chip->ChipID);
 						continue;
 					}
 				}
@@ -1288,10 +1304,12 @@ namespace SSD_Components
 								|| source == Transaction_Source_Type::GC_WL)
 							{
 								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+									&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+									chip->ChannelID, chip->ChipID);
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+								chip->ChannelID, chip->ChipID);
 							continue;
 						}
 					}
@@ -1334,9 +1352,11 @@ namespace SSD_Components
 					transaction_dispatch_slots.push_back(*it);
 					source_queue->remove(it++);
 					adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
-						&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id]);
+						&UserReadTRQueue[chip->ChannelID][chip->ChipID], &UserReadTRBuffer[dispatched_stream_id],
+						chip->ChannelID, chip->ChipID);
 					adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
-						&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id]);
+						&UserWriteTRQueue[chip->ChannelID][chip->ChipID], &UserWriteTRBuffer[dispatched_stream_id],
+						chip->ChannelID, chip->ChipID);
 				}
 				it++;
 			}
