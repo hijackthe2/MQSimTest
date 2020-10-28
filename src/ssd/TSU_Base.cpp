@@ -42,6 +42,14 @@ namespace SSD_Components
 	void TSU_Base::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
 		//TSU does nothing. The generator of the transaction will handle it.
+		if (transaction->Type == Transaction_Type::ERASE)
+		{
+			if (_my_instance->count % 1000 == 0)
+			{
+				std::cout << "tsu service erase\t" << _my_instance->count << "\t" << transaction->Stream_id << "\n";
+			}
+			++_my_instance->count;
+		}
 		switch (_my_instance->type)
 		{
 		case Flash_Scheduling_Type::SPEED_LIMIT:

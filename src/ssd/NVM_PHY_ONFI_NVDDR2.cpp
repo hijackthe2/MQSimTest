@@ -185,12 +185,6 @@ namespace SSD_Components {
 			dieBKE->ActiveCommand->Address.push_back((*it)->Address);
 			NVM::FlashMemory::PageMetadata metadata;
 			metadata.LPA = (*it)->LPA;
-			if ((*it)->Address.ChannelID == 3 && (*it)->Address.ChipID == 1 && (*it)->Address.DieID == 0
-				&& (*it)->Address.PlaneID == 1 && (*it)->Address.BlockID == 0 && (*it)->Address.PlaneID == 10 )
-			{
-				std::cout << "NVM_PHY_ONFI_NVDDR2\t" << "send command to chip\tlpa" << (*it)->LPA << "\tppa"
-					<< (*it)->PPA << "\n";
-			}
 			dieBKE->ActiveCommand->Meta_data.push_back(metadata);
 		}
 

@@ -1193,11 +1193,6 @@ namespace SSD_Components
 			block_manager->Allocate_block_and_page_in_plane_for_gc_write(transaction->Stream_id, transaction->Address);
 		else
 			block_manager->Allocate_block_and_page_in_plane_for_user_write(transaction->Stream_id, transaction->Address);
-		if (transaction->Address.ChannelID == 3 && transaction->Address.ChipID == 1 && transaction->Address.DieID == 0
-			&& transaction->Address.PlaneID == 1 && transaction->Address.BlockID == 0 && transaction->Address.PageID == 10)
-		{
-			std::cout << "address mapping\t" << "allocate page in plane for user write\n";
-		}
 		transaction->PPA = Convert_address_to_ppa(transaction->Address);
 		domain->Update_mapping_info(ideal_mapping_table, transaction->Stream_id, transaction->LPA, transaction->PPA,
 			((NVM_Transaction_Flash_WR*)transaction)->write_sectors_bitmap | domain->Get_page_status(ideal_mapping_table, transaction->Stream_id, transaction->LPA));
@@ -1396,7 +1391,6 @@ namespace SSD_Components
 		block_manager->Allocate_block_and_page_in_plane_for_user_write(stream_id, read_address);
 		PPA_type ppa = Convert_address_to_ppa(read_address);
 		domain->Update_mapping_info(ideal_mapping_table, stream_id, lpa, ppa, read_sectors_bitmap);
-
 		return ppa;
 	}
 
@@ -1868,20 +1862,16 @@ namespace SSD_Components
 				{
 					LPA_type lpa = flash_controller->Get_metadata(addr.ChannelID, addr.ChipID, addr.DieID, addr.PlaneID, addr.BlockID, addr.PageID);
 					LPA_type ppa = domains[block->Stream_id]->GlobalMappingTable[lpa].PPA;
-					std::cout << "address mapping\t" << "lpa\t" << lpa << "\tppa\t" << ppa << "\t"
-						<< addr.ChannelID << "\t" << addr.ChipID << "\t" << addr.DieID << "\t" << addr.PlaneID << "\t"
-						<< addr.BlockID << "\t" << addr.PageID << "\n";
+					//std::cout << pageID << "\tppa\t" << ppa << "\tlpa\t" << lpa << "\n";
 					if (domains[block->Stream_id]->CMT->Exists(block->Stream_id, lpa))
 					{
 						ppa = domains[block->Stream_id]->CMT->Retrieve_ppa(block->Stream_id, lpa);
-						std::cout << "\tretrieve ppa\t" << ppa;
 					}
-					if (ppa != Convert_address_to_ppa(addr))
+					if (/*lpa != NO_LPA && */ppa != Convert_address_to_ppa(addr))
 					{
-						std::cout << "\tconvert address\t" << Convert_address_to_ppa(addr) << "\t";
 						PRINT_ERROR("Inconsistency in the global mapping table when locking an LPA!")
 					}
-					std::cout << "\n";
+					//if (lpa != NO_LPA)
 					Set_barrier_for_accessing_lpa(block->Stream_id, lpa);
 				}
 			}

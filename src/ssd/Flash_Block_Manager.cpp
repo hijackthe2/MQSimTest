@@ -24,11 +24,6 @@ namespace SSD_Components
 		plane_record->Free_pages_count--;		
 		page_address.BlockID = plane_record->Data_wf[stream_id]->BlockID;
 		page_address.PageID = plane_record->Data_wf[stream_id]->Current_page_write_index++;
-		if (page_address.ChannelID == 3 && page_address.ChipID == 1 && page_address.DieID == 0 && page_address.PlaneID == 1
-			&& page_address.BlockID == 0 && page_address.PageID == 10)
-		{
-			std::cout << "flash block manager\tallocate block for user write\n";
-		}
 		program_transaction_issued(page_address);
 		if(plane_record->Data_wf[stream_id]->Current_page_write_index == pages_no_per_block)//The current write frontier block is written to the end
 		{
@@ -46,11 +41,6 @@ namespace SSD_Components
 		plane_record->Free_pages_count--;		
 		page_address.BlockID = plane_record->GC_wf[stream_id]->BlockID;
 		page_address.PageID = plane_record->GC_wf[stream_id]->Current_page_write_index++;
-		if (page_address.ChannelID == 3 && page_address.ChipID == 1 && page_address.DieID == 0 && page_address.PlaneID == 1
-			&& page_address.BlockID == 0 && page_address.PageID == 10)
-		{
-			std::cout << "flash block manager\tallocate block for gc write\n";
-		}
 		if (plane_record->GC_wf[stream_id]->Current_page_write_index == pages_no_per_block)//The current write frontier block is written to the end
 			plane_record->GC_wf[stream_id] = plane_record->Get_a_free_block(stream_id, false);//Assign a new write frontier block
 		

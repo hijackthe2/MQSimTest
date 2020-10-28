@@ -28,6 +28,9 @@ namespace SSD_Components
 		void Execute_simulator_event(MQSimEngine::Sim_Event* event);
 		void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+		double proportional_slowdown(stream_id_type gc_stream_id) { return 1; }
+		double fairness() { return 1; }
+		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) { return this->GCEraseTRQueue[channel_id][chip_id].size(); }
 	private:
 		Flash_Transaction_Queue** UserTRQueue;
 		Flash_Transaction_Queue** GCReadTRQueue;

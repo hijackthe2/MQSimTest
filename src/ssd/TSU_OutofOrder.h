@@ -44,6 +44,7 @@ namespace SSD_Components
 		{
 			return GCEraseTRQueue[channel_id][chip_id].size();
 		}
+		double fairness();
 
 	private:
 		Flash_Transaction_Queue** UserReadTRQueue;

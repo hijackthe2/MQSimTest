@@ -268,3 +268,10 @@ out/*.txt
 *.xml
 !ssdconfig.xml
 !workload.xml
+/traces/Exchange34.trace
+/traces/Exchange2.trace
+/traces/Exchange_top40.trace
+/traces/Exchange1234.trace
+/traces/Exchange3.trace
+/traces/Exchange_top10.trace
+/traces/Exchange134.trace

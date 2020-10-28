@@ -233,7 +233,7 @@ namespace SSD_Components
 	
 	void TSU_OutOfOrder::estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue)
 	{
-		sim_time_type chip_busy_time = 0, waiting_last_time = 0;
+		sim_time_type chip_busy_time = 0, read_waiting_last_time = 0, write_waiting_last_time = 0;
 		NVM_Transaction_Flash* chip_tr = _NVMController->Is_chip_busy_with_stream(transaction);
 		if (chip_tr && _NVMController->Expected_finish_time(chip_tr) > Simulator->Time())
 		{
@@ -247,13 +247,16 @@ namespace SSD_Components
 				--itr_it;
 				if ((*itr_it)->Stream_id == transaction->Stream_id)
 				{
-					waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
+					if ((*itr_it)->Type == Transaction_Type::READ)
+						read_waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
+					else if ((*itr_it)->Type == Transaction_Type::WRITE)
+						write_waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
 				}
 			} while (itr_it != queue->begin());
 		}
-		if (transaction->Type == Transaction_Type::READ) waiting_last_time += waiting_last_time / 2;
-		else if (transaction->Type == Transaction_Type::WRITE) waiting_last_time /= 2;
-		transaction->alone_time = chip_busy_time + waiting_last_time
+		read_waiting_last_time += read_waiting_last_time / 2;
+		write_waiting_last_time /= 2;
+		transaction->alone_time = chip_busy_time + read_waiting_last_time + write_waiting_last_time
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
@@ -286,6 +289,21 @@ namespace SSD_Components
 		double slowdown = (double)shared_total_time[gc_stream_id] / (1e-10 + alone_total_time[gc_stream_id]);
 		//std::cout << "slowdown\t" << shared_total_time[gc_stream_id] << "\t" << alone_total_time[gc_stream_id] << "\n";
 		return min_slowdown / (1e-10 + slowdown);
+	}
+
+	double TSU_OutOfOrder::fairness()
+	{
+		double min_slowdown = DBL_MAX, max_slowdown = -1;
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			if (alone_total_time[stream_id])
+			{
+				double slowdown = (double)shared_total_time[stream_id] / alone_total_time[stream_id];
+				min_slowdown = std::min(min_slowdown, slowdown);
+				max_slowdown = std::max(max_slowdown, slowdown);
+			}
+		}
+		return max_slowdown < 0 ? 1.0 : min_slowdown / max_slowdown;
 	}
 
 	bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
@@ -355,6 +373,7 @@ namespace SSD_Components
 		
 		flash_die_ID_type dieID = sourceQueue1->front()->Address.DieID;
 		flash_page_ID_type pageID = sourceQueue1->front()->Address.PageID;
+		Transaction_Type type = sourceQueue1->front()->Type;
 		unsigned int planeVector = 0;
 		for (unsigned int i = 0; i < die_no_per_chip; i++)
 		{
@@ -363,7 +382,7 @@ namespace SSD_Components
 
 			for (Flash_Transaction_Queue::iterator it = sourceQueue1->begin(); it != sourceQueue1->end();)
 			{
-				if ((*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+				if ((*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID) /*&& (*it)->Type == type*/)
 				{
 					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 					{
@@ -380,7 +399,7 @@ namespace SSD_Components
 			if (sourceQueue2 != NULL && transaction_dispatch_slots.size() < plane_no_per_die)
 				for (Flash_Transaction_Queue::iterator it = sourceQueue2->begin(); it != sourceQueue2->end();)
 				{
-					if ((*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+					if ((*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID) /*&& (*it)->Type == type*/)
 					{
 						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 						{

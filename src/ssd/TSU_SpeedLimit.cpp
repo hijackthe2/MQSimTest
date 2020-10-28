@@ -249,21 +249,10 @@ namespace SSD_Components
 	{
 		if (transaction->Type == Transaction_Type::ERASE)
 		{
-			if (count % 1000 == 0)
-			{
-				std::cout << "tsu\t" << count << "\n";
-			}
-			++count;
+			double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id);
+			double fairness_after = fairness();
+			tsu_fs << proportional_slowdown_after << "\t" << fairness_after << "\t" << transaction->Stream_id << std::endl;
 		}
-		/*if (transaction->Source == Transaction_Source_Type::GC_WL)
-		{
-			std::cout << (int)transaction->Type << "\t" << _NVMController->Expected_transfer_time(transaction) << "\t"
-				<< _NVMController->Expected_command_time(transaction) << "\t"
-				<< _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction) << "\t"
-				<< Simulator->Time() - transaction->Issue_time << "\t"
-				<< (double)(Simulator->Time() - transaction->Issue_time) / (_NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction))
-				<< "\n";
-		}*/
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;
 		total_count[transaction->Stream_id] += 1;
@@ -569,7 +558,7 @@ namespace SSD_Components
 		}
 		else if (transaction->Type == Transaction_Type::WRITE)
 		{
-			waiting_last_time /= 2;
+			waiting_last_time /= 4;
 		}
 		transaction->shared_time = chip_busy_time + waiting_last_time + (Simulator->Time() - transaction->Issue_time)
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
@@ -584,7 +573,7 @@ namespace SSD_Components
 			{
 				adjust_time += adjust_time / 2;
 			}
-			else
+			else if (type == Transaction_Type::WRITE)
 			{
 				adjust_time /= 4;
 			}
@@ -606,7 +595,6 @@ namespace SSD_Components
 		}
 		else if (source == Transaction_Source_Type::MAPPING)
 		{
-
 		}
 		for (auto it = queue->begin(); it != queue->end(); ++it)
 		{

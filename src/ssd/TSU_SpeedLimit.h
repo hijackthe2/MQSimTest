@@ -6,6 +6,7 @@
 #include "NVM_Transaction_Flash.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include <algorithm>
+#include "../exec/Global.h"
 
 namespace SSD_Components
 {
@@ -92,7 +93,6 @@ namespace SSD_Components
 		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count);
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
 			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
-		int count = 0;
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);

@@ -55,6 +55,9 @@ namespace SSD_Components
 		void Validate_simulation_config();
 		void Execute_simulator_event(MQSimEngine::Sim_Event*);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+		double proportional_slowdown(stream_id_type gc_stream_id) { return 1; }
+		double fairness() { return 1; }
+		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) { return this->GCEraseTRQueue[channel_id][chip_id].size(); }
 	private:
 		unsigned int* stream_count_per_priority_class;
 		stream_id_type** stream_ids_per_priority_class;

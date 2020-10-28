@@ -4,8 +4,6 @@
 #include "GC_and_WL_Unit_Page_Level.h"
 #include "Flash_Block_Manager.h"
 #include "FTL.h"
-#include "TSU_OutofOrder.h"
-#include "TSU_SpeedLimit.h"
 
 namespace SSD_Components
 {
@@ -21,6 +19,27 @@ namespace SSD_Components
 			dynamic_wearleveling_enabled, static_wearleveling_enabled, static_wearleveling_threshold, seed)
 	{
 		rga_set_size = (unsigned int)log2(block_no_per_plane);
+		bitmap = new bool**** [channel_count];
+		for (unsigned int channel_id = 0; channel_id < channel_count; ++channel_id)
+		{
+			bitmap[channel_id] = new bool*** [chip_no_per_channel];
+			for (unsigned int chip_id = 0; chip_id < chip_no_per_channel; ++chip_id)
+			{
+				bitmap[channel_id][chip_id] = new bool** [die_no_per_chip];
+				for (unsigned int die_id = 0; die_id < die_no_per_chip; ++die_id)
+				{
+					bitmap[channel_id][chip_id][die_id] = new bool* [plane_no_per_die];
+					for (unsigned int plane_id = 0; plane_id < plane_no_per_die; ++plane_id)
+					{
+						bitmap[channel_id][chip_id][die_id][plane_id] = new bool[block_no_per_plane];
+						for (unsigned int block_id = 0; block_id < block_no_per_plane; ++block_id)
+						{
+							bitmap[channel_id][chip_id][die_id][plane_id][block_id] = false;
+						}
+					}
+				}
+			}
+		}
 	}
 	
 	bool GC_and_WL_Unit_Page_Level::GC_is_in_urgent_mode(const NVM::FlashMemory::Flash_Chip* chip)
@@ -135,12 +154,21 @@ namespace SSD_Components
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_erase_operations.insert(gc_candidate_block_id);
-			std::cout << "gc page level gc check required\t" << block->Invalid_page_count << "\t"
-				<< block->Current_page_write_index << "\n";
+			/*std::cout << gc_candidate_address.ChannelID << "\t" << gc_candidate_address.ChipID << "\t"
+				<< gc_candidate_address.DieID << "\t" << gc_candidate_address.PlaneID << "\t" << gc_candidate_address.BlockID << "\t";*/
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
+			//std::cout << "set barrier for accessing physical block\n";
+			if (!bitmap[gc_candidate_address.ChannelID][gc_candidate_address.ChipID][gc_candidate_address.DieID][gc_candidate_address.PlaneID]
+				[gc_candidate_address.BlockID])
+			{
+				bitmap[gc_candidate_address.ChannelID][gc_candidate_address.ChipID][gc_candidate_address.DieID][gc_candidate_address.PlaneID]
+					[gc_candidate_address.BlockID] = true;
+				count++;
+			}
+			//std::cout << count << "\n";
 			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
-
+				//std::cout << "issue gc transaction\n";
 				// plane
 				double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
 				double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
@@ -150,21 +178,23 @@ namespace SSD_Components
 				double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
 
 				// proportional slowdown
-				double proportional_slowdown = ((TSU_SpeedLimit*)tsu)->proportional_slowdown(block->Stream_id);
-				//std::cout << block->Stream_id << "\t" << proportional_slowdown << "\n";
+				double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
+				// fairness
+				double fairness_before = tsu->fairness();
 
 				// gc queue
-				bool has_gc_transaction = ((TSU_SpeedLimit*)tsu)->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
+				bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
 
 				gc_fs << plane_invalid_page_percent << "\t" << plane_valid_page_percent << "\t" << plane_free_page_percent << "\t"
-					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << proportional_slowdown << "\t"
-					<< has_gc_transaction << "\t" << 1 << std::endl;
+					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << has_gc_transaction << "\t"
+					<< proportional_slowdown_before << "\t" << fairness_before << "\t" << block->Stream_id << "\t"
+					<< 1 << std::endl;
 
 				if (Stats::Total_gc_executions % 1000 == 0)
 				{
-					std::cout << "gc\t" << Stats::Total_gc_executions << "\t"
+					std::cout << "gc execte\t" << Stats::Total_gc_executions << "\t"
 						<< (double)free_block_pool_size / block_no_per_plane << "\t"
-						<< free_block_pool_size << "\n";
+						<< free_block_pool_size << "\t" << block->Stream_id << "\n";
 				}
 				Stats::Total_gc_executions++;
 				tsu->Prepare_for_transaction_submit();

@@ -14,6 +14,7 @@
 using namespace std;
 
 fstream gc_fs;
+fstream tsu_fs;
 
 void command_line_args(char* argv[], string& input_file_path, string& workload_file_path)
 {
@@ -304,8 +305,12 @@ int main(int argc, char* argv[])
 	gc_fs.open("out/gc_info.txt", std::fstream::out);
 	gc_fs << std::fixed << std::setprecision(3);
 	gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
-		<< "block_invalid_page_percent\t" << "proportional_slowdown\t" << "has_gc_transaction\t"
+		<< "block_invalid_page_percent\t" << "has_gc_transaction\t" << "proportional_slowdown_before\t" << "fairness_before\t" << "gc_stream_id\t"
 		<< "GC" << endl;
+
+	tsu_fs.open("out/tsu_info.txt", std::fstream::out);
+	tsu_fs << std::fixed << std::setprecision(3);
+	tsu_fs << "proportional_slowdown_after\t" << "fairness_after\t" << "gc_stream_id" << endl;
 
 	int cntr = 1;
 	for (auto io_scen = io_scenarios->begin(); io_scen != io_scenarios->end(); io_scen++, cntr++)
@@ -343,5 +348,6 @@ int main(int argc, char* argv[])
 
 	//cin.get();
 	gc_fs.close();
+	tsu_fs.close();
 	return 0;
 }

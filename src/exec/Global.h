@@ -5,5 +5,6 @@
 #include <iomanip>
 
 extern std::fstream gc_fs;
+extern std::fstream tsu_fs;
 
 #endif // !GLOBAL_H

@@ -9,7 +9,8 @@
 #include "FTL.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include "Flash_Transaction_Queue.h"
-#include "limits.h"
+#include <limits.h>
+#include <float.h>
 
 namespace SSD_Components
 {
@@ -49,6 +50,9 @@ namespace SSD_Components
 		*/
 		virtual void Schedule() = 0;
 		virtual void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+		virtual double proportional_slowdown(stream_id_type gc_stream_id) = 0;
+		virtual size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
+		virtual double fairness() = 0;
 	protected:
 		FTL* ftl;
 		NVM_PHY_ONFI_NVDDR2* _NVMController;
@@ -76,6 +80,7 @@ namespace SSD_Components
 		static void handle_chip_idle_signal(NVM::FlashMemory::Flash_Chip* chip);
 
 		int opened_scheduling_reqs;
+		int count = 0;
 	};
 }
 
