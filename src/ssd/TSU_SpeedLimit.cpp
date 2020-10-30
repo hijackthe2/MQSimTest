@@ -251,7 +251,9 @@ namespace SSD_Components
 		{
 			double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id);
 			double fairness_after = fairness();
-			tsu_fs << proportional_slowdown_after << "\t" << fairness_after << "\t" << transaction->Stream_id << std::endl;
+			tsu_fs << transaction->Address.ChannelID << "\t" << transaction->Address.ChipID << "\t"
+				<< transaction->Address.DieID << "\t" << transaction->Address.PlaneID << "\t"
+				<< proportional_slowdown_after << "\t" << fairness_after << "\t" << transaction->Stream_id << std::endl;
 		}
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;

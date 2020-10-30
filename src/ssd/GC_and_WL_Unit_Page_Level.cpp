@@ -187,8 +187,10 @@ namespace SSD_Components
 
 				gc_fs << plane_invalid_page_percent << "\t" << plane_valid_page_percent << "\t" << plane_free_page_percent << "\t"
 					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << has_gc_transaction << "\t"
-					<< proportional_slowdown_before << "\t" << fairness_before << "\t" << block->Stream_id << "\t"
-					<< 1 << std::endl;
+					<< proportional_slowdown_before << "\t" << fairness_before << "\t" << block->Stream_id << "\t" << 1 << "\t"
+					<< plane_address.ChannelID << "\t" << plane_address.ChipID << "\t"
+					<< plane_address.DieID << "\t" << plane_address.PlaneID
+					<< std::endl;
 
 				if (Stats::Total_gc_executions % 1000 == 0)
 				{
