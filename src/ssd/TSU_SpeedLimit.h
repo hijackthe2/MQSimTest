@@ -101,9 +101,11 @@ namespace SSD_Components
 			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer,
 			flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 
+		void adjust_shared_time(stream_id_type dispatch_stream_id, sim_time_type adjust_time, Transaction_Type type,
+			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer, bool exclusive,
+			flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		sim_time_type* waiting_alone_time();
-		sim_time_type* waiting_write_shared_time();
-		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned int remain_count);
+		sim_time_type* waiting_shared_time();
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
