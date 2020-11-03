@@ -178,9 +178,11 @@ namespace SSD_Components
 				double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
 
 				// proportional slowdown
-				double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
+				//double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
+				double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id, plane_address.ChannelID, plane_address.ChipID);
 				// fairness
-				double fairness_before = tsu->fairness();
+				//double fairness_before = tsu->fairness();
+				double fairness_before = tsu->fairness(plane_address.ChannelID, plane_address.ChipID);
 
 				// gc queue
 				bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;

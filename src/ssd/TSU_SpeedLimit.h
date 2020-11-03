@@ -7,6 +7,7 @@
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include <algorithm>
 #include "../exec/Global.h"
+#include <vector>
 
 namespace SSD_Components
 {
@@ -31,6 +32,8 @@ namespace SSD_Components
 		void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
 		double proportional_slowdown(stream_id_type gc_stream_id);
 		double fairness();
+		double proportional_slowdown(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		double fairness(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	private:
@@ -76,6 +79,9 @@ namespace SSD_Components
 		unsigned long*** remain_in_read_queue_count;
 		unsigned long*** remain_in_write_queue_count;
 
+		sim_time_type*** alone_time_chip;
+		sim_time_type*** shared_time_chip;
+
 		void update(unsigned int* arrival_count, unsigned int* limit_speed, unsigned int max_arrival_count,
 			unsigned int middle_arrival_count, unsigned int min_arrival_count, std::vector<stream_id_type>& idx,
 			const unsigned int interval_time, int type);
@@ -94,6 +100,10 @@ namespace SSD_Components
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
 			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer,
 			flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+
+		sim_time_type* waiting_alone_time();
+		sim_time_type* waiting_write_shared_time();
+		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned int remain_count);
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);

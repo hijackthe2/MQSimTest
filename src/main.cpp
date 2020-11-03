@@ -42,14 +42,14 @@ void command_line_args(char* argv[], string& input_file_path, string& workload_f
 void read_configuration_parameters(const string ssd_config_file_path, Execution_Parameter_Set* exec_params)
 {
 	ifstream ssd_config_file;
-	ssd_config_file.open(ssd_config_file_path.c_str());//c_strc()����ָ�볣��
+	ssd_config_file.open(ssd_config_file_path.c_str());
 
 	if (!ssd_config_file) {
 		PRINT_MESSAGE("The specified SSD configuration file does not exist.")
 		PRINT_MESSAGE("Using MQSim's default configuration.")
 		PRINT_MESSAGE("Writing the default configuration parameters to the expected configuration file.")
 
-		Utils::XmlWriter xmlwriter;//c���Զ�ȡxml�ļ�
+		Utils::XmlWriter xmlwriter;
 		string tmp;
 		xmlwriter.Open(ssd_config_file_path.c_str());
 		exec_params->XML_serialize(xmlwriter);
@@ -68,7 +68,7 @@ void read_configuration_parameters(const string ssd_config_file_path, Execution_
 			char* temp_string = new char[line.length() + 1];
 			strcpy(temp_string, line.c_str());
 			doc.parse<0>(temp_string);
-			rapidxml::xml_node<> *mqsim_config = doc.first_node("Execution_Parameter_Set");//���ڵ�
+			rapidxml::xml_node<> *mqsim_config = doc.first_node("Execution_Parameter_Set");
 			if (mqsim_config != NULL)
 			{
 				exec_params = new Execution_Parameter_Set;
@@ -103,8 +103,7 @@ std::vector<std::vector<IO_Flow_Parameter_Set*>*>* read_workload_definitions(con
 
 	ifstream workload_defs_file;
 	workload_defs_file.open(workload_defs_file_path.c_str());
-	bool use_default_workloads = true;//Ĭ��ʹ���Դ��Ĳ��������Ǵﵽһ������������֤���������ʹ��
-	//�������workload_defs_file_path�޷���
+	bool use_default_workloads = true;
 	if (!workload_defs_file) {
 		PRINT_MESSAGE("The specified workload definition file does not exist!");
 		PRINT_MESSAGE("Using MQSim's default workload definitions.");
@@ -288,7 +287,6 @@ void print_help()
 int main(int argc, char* argv[])
 {
 	string ssd_config_file_path, workload_defs_file_path;
-	//ssd_config_file_path��workload_defs_file_path�������ļ���
 	if (argc != 5)
 	{
 		// MQSim expects 2 arguments: 1) the path to the SSD configuration definition file, and 2) the path to the workload definition file
@@ -302,13 +300,15 @@ int main(int argc, char* argv[])
 	read_configuration_parameters(ssd_config_file_path, exec_params);
 	std::vector<std::vector<IO_Flow_Parameter_Set*>*>* io_scenarios = read_workload_definitions(workload_defs_file_path);
 
-	gc_fs.open("out/gc_info.txt", std::fstream::out);
+	//gc_fs.open("out/gc_info.txt", std::fstream::out);
+	gc_fs.open("out/chip_gc_info.txt", std::fstream::out);
 	gc_fs << std::fixed << std::setprecision(3);
 	gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
 		<< "block_invalid_page_percent\t" << "has_gc_transaction\t" << "proportional_slowdown_before\t" << "fairness_before\t" << "gc_stream_id\t"
 		<< "GC\t" << "C\tW\tD\tP" << endl;
 
-	tsu_fs.open("out/tsu_info.txt", std::fstream::out);
+	//tsu_fs.open("out/tsu_info.txt", std::fstream::out);
+	tsu_fs.open("out/chip_tsu_info.txt", std::fstream::out);
 	tsu_fs << std::fixed << std::setprecision(3);
 	tsu_fs << "C\tW\tD\tP\t" << "proportional_slowdown_after\t" << "fairness_after\t" << "gc_stream_id" << endl;
 

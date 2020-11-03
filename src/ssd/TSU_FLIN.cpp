@@ -402,7 +402,7 @@ namespace SSD_Components
 
 		//First pass: from start to end to estimate the slowdown of each transaction in its current position
 		std::stack<double> min_slowdown_list, max_slowdown_list;
-		double slowdown_min = 10000000000000000000, slowdown_max = 0;
+		double slowdown_min = DBL_MAX, slowdown_max = 0;
 		while (itr != std::next(end))
 		{
 			time_to_finish += _NVMController->Expected_transfer_time(*itr) + _NVMController->Expected_command_time(*itr);
@@ -429,7 +429,7 @@ namespace SSD_Components
 		double fairness_max = slowdown_min / slowdown_max;
 
 		// add
-		double slowdown_min_workload = 10000000000000000000, slowdown_max_workload = 0;
+		double slowdown_min_workload = DBL_MAX, slowdown_max_workload = 0;
 		for (const auto& a : slowdown_info_per_workload)
 		{
 			double slowdown = a.second.first / a.second.second;
@@ -489,7 +489,7 @@ namespace SSD_Components
 
 			double fairness_after = (double)slowdown_min / slowdown_max;
 			// add
-			double slowdown_min_workload = 10000000000000000000, slowdown_max_workload = 0;
+			double slowdown_min_workload = DBL_MAX, slowdown_max_workload = 0;
 			for (const auto& a : slowdown_info_per_workload)
 			{
 				double slowdown = a.second.first / a.second.second;
@@ -575,7 +575,7 @@ namespace SSD_Components
 			++itr;
 		}
 
-		double slowdown_max = 0, slowdown_min = 10000000000000000000.0;
+		double slowdown_max = 0, slowdown_min = DBL_MAX;
 		int stream_count = 0;
 		for (unsigned int i = 0; i < priority_stream_count; i++)
 		{

@@ -45,6 +45,12 @@ namespace SSD_Components
 			return GCEraseTRQueue[channel_id][chip_id].size();
 		}
 		double fairness();
+		double proportional_slowdown(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+		{
+			return proportional_slowdown(gc_stream_id);
+
+		}
+		double fairness(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) { return fairness(); }
 
 	private:
 		Flash_Transaction_Queue** UserReadTRQueue;
