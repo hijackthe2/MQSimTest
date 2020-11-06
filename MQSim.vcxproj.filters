@@ -490,6 +490,8 @@
   <ItemGroup>
     <None Include="README.md" />
     <None Include=".gitignore" />
+    <None Include="model.pyx" />
+    <None Include="setup.py" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="ssdconfig.xml" />

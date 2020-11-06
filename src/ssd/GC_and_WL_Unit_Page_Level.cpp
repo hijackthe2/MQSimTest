@@ -151,13 +151,33 @@ namespace SSD_Components
 			if (block->Current_page_write_index == 0 || block->Invalid_page_count == 0)//No invalid page to erase
 				return;
 
+			// plane
+			double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
+			double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
+			double plane_free_page_percent = (double)pbke->Free_pages_count / pbke->Total_pages_count;
+			double plane_free_block_percent = (double)free_block_pool_size / block_no_per_plane;
+			// block
+			double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
+
+			// proportional slowdown
+			double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
+			// fairness
+			double fairness_before = tsu->fairness();
+
+			// gc queue
+			bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
+
+			int res = predict_one_C(model, plane_invalid_page_percent, plane_valid_page_percent, plane_free_page_percent,
+				plane_free_block_percent, has_gc_transaction, proportional_slowdown_before, fairness_before);
+			if (res == 0)
+			{
+				return;
+			}
+
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_erase_operations.insert(gc_candidate_block_id);
-			/*std::cout << gc_candidate_address.ChannelID << "\t" << gc_candidate_address.ChipID << "\t"
-				<< gc_candidate_address.DieID << "\t" << gc_candidate_address.PlaneID << "\t" << gc_candidate_address.BlockID << "\t";*/
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
-			//std::cout << "set barrier for accessing physical block\n";
 			if (!bitmap[gc_candidate_address.ChannelID][gc_candidate_address.ChipID][gc_candidate_address.DieID][gc_candidate_address.PlaneID]
 				[gc_candidate_address.BlockID])
 			{
@@ -178,11 +198,9 @@ namespace SSD_Components
 				double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
 
 				// proportional slowdown
-				//double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
-				double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id, plane_address.ChannelID, plane_address.ChipID);
+				double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
 				// fairness
-				//double fairness_before = tsu->fairness();
-				double fairness_before = tsu->fairness(plane_address.ChannelID, plane_address.ChipID);
+				double fairness_before = tsu->fairness();
 
 				// gc queue
 				bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;

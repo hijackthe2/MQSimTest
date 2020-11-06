@@ -9,7 +9,7 @@ BUILD_DIR := $(addprefix build/,$(MODULES)) build
 SRC       := $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.cpp))
 SRC       := src/main.cpp $(SRC)
 OBJ       := $(patsubst src/%.cpp,build/%.o,$(SRC))
-INCLUDES  := $(addprefix -I,$(SRC_DIR))
+INCLUDES  := $(addprefix -I,$(SRC_DIR)) -I/usr/include/python3.5m -I/usr/include/python3.5m
 
 vpath %.cpp $(SRC_DIR)
 
@@ -23,7 +23,7 @@ endef
 all: checkdirs MQSim
 
 MQSim: $(OBJ)
-	$(LD) $^ -o $@
+	$(LD) $^ -o $@ -lpython3.5m -lpthread -ldl -lutil -lm  ./model.cpython-35m-x86_64-linux-gnu.so
 
 checkdirs: $(BUILD_DIR)
 

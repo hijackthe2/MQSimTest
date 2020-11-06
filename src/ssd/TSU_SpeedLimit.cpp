@@ -380,33 +380,26 @@ namespace SSD_Components
 
 	double TSU_SpeedLimit::proportional_slowdown(stream_id_type gc_stream_id)
 	{
-		sim_time_type* alone_time = waiting_alone_time();
-		sim_time_type* shared_time = waiting_shared_time();
 		double min_slowdown = INT_MAX;
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
-			if (alone_total_time[stream_id] + alone_time[stream_id])
+			if (alone_total_time[stream_id])
 			{
-				min_slowdown = std::min(min_slowdown, (double)(shared_total_time[stream_id] + shared_time[stream_id])
-					/ (alone_total_time[stream_id] + alone_time[stream_id]));
+				min_slowdown = std::min(min_slowdown, (double)shared_total_time[stream_id] / alone_total_time[stream_id]);
 			}
 		}
-		double slowdown = (double)(shared_total_time[gc_stream_id] + shared_time[gc_stream_id])
-			/ ((1e-10 + alone_total_time[gc_stream_id] + alone_time[gc_stream_id]));
+		double slowdown = (double)shared_total_time[gc_stream_id] / (1e-10 + alone_total_time[gc_stream_id]);
 		return min_slowdown / (1e-10 + slowdown);
 	}
 
 	double TSU_SpeedLimit::fairness()
 	{
-		sim_time_type* alone_time = waiting_alone_time();
-		sim_time_type* shared_time = waiting_shared_time();
 		double min_slowdown = INT_MAX, max_slowdown = -1;
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
-			if (alone_total_time[stream_id] + alone_time[stream_id])
+			if (alone_total_time[stream_id])
 			{
-				double workload_slowdown = (double)(shared_total_time[stream_id] + shared_time[stream_id])
-					/ (alone_total_time[stream_id] + alone_time[stream_id]);
+				double workload_slowdown = (double)shared_total_time[stream_id] / alone_total_time[stream_id];
 				min_slowdown = std::min(min_slowdown, workload_slowdown);
 				max_slowdown = std::max(max_slowdown, workload_slowdown);
 			}

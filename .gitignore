@@ -275,3 +275,4 @@ out/*.txt
 /traces/Exchange3.trace
 /traces/Exchange_top10.trace
 /traces/Exchange134.trace
+/model.cp38-win_amd64.pyd
