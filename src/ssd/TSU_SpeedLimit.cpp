@@ -270,10 +270,10 @@ namespace SSD_Components
 	{
 		if (transaction->Type == Transaction_Type::ERASE)
 		{
-			//double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id);
-			double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id, transaction->Address.ChannelID, transaction->Address.ChipID);
-			//double fairness_after = fairness();
-			double fairness_after = fairness(transaction->Address.ChannelID, transaction->Address.ChipID);
+			double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id);
+			//double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id, transaction->Address.ChannelID, transaction->Address.ChipID);
+			double fairness_after = fairness();
+			//double fairness_after = fairness(transaction->Address.ChannelID, transaction->Address.ChipID);
 			tsu_fs << transaction->Address.ChannelID << "\t" << transaction->Address.ChipID << "\t"
 				<< transaction->Address.DieID << "\t" << transaction->Address.PlaneID << "\t"
 				<< proportional_slowdown_after << "\t" << fairness_after << "\t" << transaction->Stream_id << std::endl;
