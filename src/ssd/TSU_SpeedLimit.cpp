@@ -268,16 +268,16 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
-		if (transaction->Type == Transaction_Type::ERASE)
-		{
-			double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id);
-			//double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id, transaction->Address.ChannelID, transaction->Address.ChipID);
-			double fairness_after = fairness();
-			//double fairness_after = fairness(transaction->Address.ChannelID, transaction->Address.ChipID);
-			tsu_fs << transaction->Address.ChannelID << "\t" << transaction->Address.ChipID << "\t"
-				<< transaction->Address.DieID << "\t" << transaction->Address.PlaneID << "\t"
-				<< proportional_slowdown_after << "\t" << fairness_after << "\t" << transaction->Stream_id << std::endl;
-		}
+		//if (transaction->Type == Transaction_Type::ERASE)
+		//{
+		//	double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id);
+		//	//double proportional_slowdown_after = proportional_slowdown(transaction->Stream_id, transaction->Address.ChannelID, transaction->Address.ChipID);
+		//	double fairness_after = fairness();
+		//	//double fairness_after = fairness(transaction->Address.ChannelID, transaction->Address.ChipID);
+		//	tsu_fs << transaction->Address.ChannelID << "\t" << transaction->Address.ChipID << "\t"
+		//		<< transaction->Address.DieID << "\t" << transaction->Address.PlaneID << "\t"
+		//		<< proportional_slowdown_after << "\t" << fairness_after << "\t" << transaction->Stream_id << std::endl;
+		//}
 		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
 			return;
 		total_count[transaction->Stream_id] += 1;
@@ -381,25 +381,31 @@ namespace SSD_Components
 	double TSU_SpeedLimit::proportional_slowdown(stream_id_type gc_stream_id)
 	{
 		double min_slowdown = INT_MAX;
+		sim_time_type* alone = waiting_alone_time();
+		sim_time_type* shared = waiting_shared_time();
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
 			if (alone_total_time[stream_id])
 			{
-				min_slowdown = std::min(min_slowdown, (double)shared_total_time[stream_id] / alone_total_time[stream_id]);
+				min_slowdown = std::min(min_slowdown, (double)(shared_total_time[stream_id] + shared[stream_id])
+					/ (alone_total_time[stream_id] + alone[stream_id]));
 			}
 		}
-		double slowdown = (double)shared_total_time[gc_stream_id] / (1e-10 + alone_total_time[gc_stream_id]);
+		double slowdown = (double)(shared_total_time[gc_stream_id] + shared[gc_stream_id])
+			/ (1e-10 + alone_total_time[gc_stream_id] + alone[gc_stream_id]);
 		return min_slowdown / (1e-10 + slowdown);
 	}
 
 	double TSU_SpeedLimit::fairness()
 	{
 		double min_slowdown = INT_MAX, max_slowdown = -1;
+		sim_time_type* alone = waiting_alone_time();
+		sim_time_type* shared = waiting_shared_time();
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
 			if (alone_total_time[stream_id])
 			{
-				double workload_slowdown = (double)shared_total_time[stream_id] / alone_total_time[stream_id];
+				double workload_slowdown = (double)(shared_total_time[stream_id] + shared[stream_id]) / (alone_total_time[stream_id] + alone[stream_id]);
 				min_slowdown = std::min(min_slowdown, workload_slowdown);
 				max_slowdown = std::max(max_slowdown, workload_slowdown);
 			}

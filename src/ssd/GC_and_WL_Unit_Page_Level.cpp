@@ -151,7 +151,7 @@ namespace SSD_Components
 			if (block->Current_page_write_index == 0 || block->Invalid_page_count == 0)//No invalid page to erase
 				return;
 
-			// plane
+			/*// plane
 			double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
 			double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
 			double plane_free_page_percent = (double)pbke->Free_pages_count / pbke->Total_pages_count;
@@ -172,7 +172,7 @@ namespace SSD_Components
 			if (res == 0)
 			{
 				return;
-			}
+			}*/
 
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
@@ -198,16 +198,18 @@ namespace SSD_Components
 				double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
 
 				// proportional slowdown
-				double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
+				double proportional_slowdown_before0 = tsu->proportional_slowdown(0, plane_address.ChannelID, plane_address.ChipID);
+				double proportional_slowdown_before1 = tsu->proportional_slowdown(1, plane_address.ChannelID, plane_address.ChipID);
 				// fairness
-				double fairness_before = tsu->fairness();
+				double fairness_before = tsu->fairness(plane_address.ChannelID, plane_address.ChipID);
 
 				// gc queue
 				bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
 
 				gc_fs << plane_invalid_page_percent << "\t" << plane_valid_page_percent << "\t" << plane_free_page_percent << "\t"
 					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << has_gc_transaction << "\t"
-					<< proportional_slowdown_before << "\t" << fairness_before << "\t" << block->Stream_id << "\t" << 1 << "\t"
+					<< proportional_slowdown_before0 << "\t" << proportional_slowdown_before1 << "\t" << fairness_before
+					<< "\t" << block->Stream_id << "\t" << 1 << "\t"
 					<< plane_address.ChannelID << "\t" << plane_address.ChipID << "\t"
 					<< plane_address.DieID << "\t" << plane_address.PlaneID
 					<< std::endl;
