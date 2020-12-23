@@ -217,7 +217,7 @@
     <ClCompile Include="src\ssd\TSU_SpeedLimit.cpp">
       <Filter>ssd</Filter>
     </ClCompile>
-    <ClCompile Include="src\ssd\TSU_SimpleFLIN.cpp">
+    <ClCompile Include="src\ssd\TSU_SLFIFO.cpp">
       <Filter>ssd</Filter>
     </ClCompile>
   </ItemGroup>
@@ -486,11 +486,11 @@
     <ClInclude Include="src\exec\Global.h">
       <Filter>exec</Filter>
     </ClInclude>
-    <ClInclude Include="src\ssd\TSU_SimpleFLIN.h">
-      <Filter>ssd</Filter>
-    </ClInclude>
     <ClInclude Include="src\exec\Externer.h">
       <Filter>exec</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ssd\TSU_SLFIFO.h">
+      <Filter>ssd</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
