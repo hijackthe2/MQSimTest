@@ -293,12 +293,6 @@ namespace SSD_Components
 		round_robin_mapping_address = new NVM::FlashMemory::Physical_Page_Address[no_of_input_streams];
 		for (unsigned int domainID = 0; domainID < no_of_input_streams; domainID++)
 		{
-
-			round_robin_address[domainID].ChannelID = round_robin_mapping_address[domainID].ChannelID = domainID % channel_count;
-			round_robin_address[domainID].ChipID = round_robin_mapping_address[domainID].ChipID = domainID % chip_no_per_channel;
-			round_robin_address[domainID].DieID = round_robin_mapping_address[domainID].DieID = domainID % die_no_per_chip;
-			round_robin_address[domainID].PlaneID = round_robin_mapping_address[domainID].PlaneID = domainID % plane_no_per_die;
-
 			/* Since we want to have the same mapping table entry size for all streams, the entry size
 			*  is calculated at this level and then pass it to the constructors of mapping domains
 			* entry size = sizeOf(lpa) + sizeOf(ppn) + sizeOf(bit vector that shows written sectors of a page)
@@ -366,6 +360,12 @@ namespace SSD_Components
 				(unsigned int)(stream_die_ids[domainID].size()), plane_ids, (unsigned int)(stream_plane_ids[domainID].size()),
 				Utils::Logical_Address_Partitioning_Unit::PDA_count_allocate_to_flow(domainID), Utils::Logical_Address_Partitioning_Unit::LHA_count_allocate_to_flow_from_device_view(domainID),
 				sector_no_per_page);
+
+			round_robin_address[domainID].ChannelID = round_robin_mapping_address[domainID].ChannelID = 0;
+			round_robin_address[domainID].ChipID = round_robin_mapping_address[domainID].ChipID = 0;
+			round_robin_address[domainID].DieID = round_robin_mapping_address[domainID].DieID = 0;
+			round_robin_address[domainID].PlaneID = round_robin_mapping_address[domainID].PlaneID = 0;
+
 			delete[] channel_ids;
 			delete[] chip_ids;
 			delete[] die_ids;
@@ -469,7 +469,9 @@ namespace SSD_Components
 					ftl->TSU->Submit_transaction(static_cast<NVM_Transaction_Flash*>(*it));
 					if (((NVM_Transaction_Flash*)(*it))->Type == Transaction_Type::WRITE)
 						if (((NVM_Transaction_Flash_WR*)(*it))->RelatedRead != NULL)
+						{
 							ftl->TSU->Submit_transaction(((NVM_Transaction_Flash_WR*)(*it))->RelatedRead);
+						}
 				}
 			ftl->TSU->Schedule();
 		}
@@ -973,7 +975,13 @@ namespace SSD_Components
 			targetAddress.PlaneID = domain->Plane_ids[(unsigned int)(lpn % domain->Plane_no)];
 			break;
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
-			allocate_round_robin_address_bypass_gc(round_robin_address[stream_id], targetAddress);
+			round_robin_allocation_bypass_gc(round_robin_address[stream_id], targetAddress, domain);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RRA:
+			round_robin_allocation(round_robin_address[stream_id], targetAddress, domain);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RA:
+			reserved_allocation();
 			break;
 		default:
 			PRINT_ERROR("Unknown plane allocation scheme type!")
@@ -1135,7 +1143,13 @@ namespace SSD_Components
 			targetAddress.PlaneID = domain->Plane_ids[(unsigned int)(lpn % domain->Plane_no)];
 			break;
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
-			allocate_round_robin_address_bypass_gc(round_robin_address[transaction->Stream_id], transaction->Address);
+			round_robin_allocation_bypass_gc(round_robin_address[transaction->Stream_id], transaction->Address, domain);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RRA:
+			round_robin_allocation(round_robin_address[transaction->Stream_id], transaction->Address, domain);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RA:
+			reserved_allocation();
 			break;
 		default:
 			PRINT_ERROR("Unknown plane allocation scheme type!")
@@ -1199,12 +1213,22 @@ namespace SSD_Components
 	}
 	void Address_Mapping_Unit_Page_Level::allocate_plane_for_translation_write(NVM_Transaction_Flash* transaction)
 	{
-		if (domains[transaction->Stream_id]->PlaneAllocationScheme == Flash_Plane_Allocation_Scheme_Type::RBGC)
+		Flash_Plane_Allocation_Scheme_Type type = domains[transaction->Stream_id]->PlaneAllocationScheme;
+		switch (type)
 		{
-			allocate_round_robin_address_bypass_gc(round_robin_mapping_address[transaction->Stream_id], transaction->Address);
-		}
-		else
+		case Flash_Plane_Allocation_Scheme_Type::RBGC:
+			round_robin_allocation_bypass_gc(round_robin_mapping_address[transaction->Stream_id], transaction->Address, domains[transaction->Stream_id]);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RRA:
+			round_robin_allocation(round_robin_mapping_address[transaction->Stream_id], transaction->Address, domains[transaction->Stream_id]);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RA:
+			reserved_allocation();
+			break;
+		default:
 			allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction);
+			break;
+		}
 	}
 	void Address_Mapping_Unit_Page_Level::allocate_page_in_plane_for_translation_write(NVM_Transaction_Flash* transaction, MVPN_type mvpn, bool is_for_gc)
 	{
@@ -1382,7 +1406,13 @@ namespace SSD_Components
 			read_address.PlaneID = domain->Plane_ids[(unsigned int)(lpa % domain->Plane_no)];
 			break;
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
-			allocate_round_robin_address_bypass_gc(round_robin_address[stream_id], read_address);
+			round_robin_allocation_bypass_gc(round_robin_address[stream_id], read_address, domain);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RRA:
+			round_robin_allocation(round_robin_address[stream_id], read_address, domain);
+			break;
+		case Flash_Plane_Allocation_Scheme_Type::RA:
+			reserved_allocation();
 			break;
 		default:
 			PRINT_ERROR("Unknown plane allocation scheme type!")
@@ -1681,7 +1711,7 @@ namespace SSD_Components
 		}
 	}
 
-	inline void Address_Mapping_Unit_Page_Level::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
+	void Address_Mapping_Unit_Page_Level::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
 		//First check if the transaction source is Mapping Module
 		if (transaction->Source != Transaction_Source_Type::MAPPING)
@@ -1772,61 +1802,75 @@ namespace SSD_Components
 	{
 		return domains[stream_id]->Locked_MVPNs.find(mvpn) != domains[stream_id]->Locked_MVPNs.end();
 	}
-	void Address_Mapping_Unit_Page_Level::allocate_round_robin_address_bypass_gc(NVM::FlashMemory::Physical_Page_Address& rra,
-		NVM::FlashMemory::Physical_Page_Address& target_address)
+	void Address_Mapping_Unit_Page_Level::round_robin_allocation(NVM::FlashMemory::Physical_Page_Address& rra,
+		NVM::FlashMemory::Physical_Page_Address& target_address, AddressMappingDomain* domain)
 	{
-		SSD_Components::NVM_PHY_ONFI_NVDDR2* _NVMController = (SSD_Components::NVM_PHY_ONFI_NVDDR2*)(ftl->PHY);
-		if (_NVMController->Is_chip_busy_with_gc(rra.ChannelID, rra.ChipID))
-		{
-			for (unsigned int chip_cnt = 0; chip_cnt < chip_no_per_channel; ++chip_cnt)
-			{
-				for (unsigned int channel_cnt = 0; channel_cnt < channel_count; ++channel_cnt)
-				{
-					rra.ChannelID = (rra.ChannelID + 1) % channel_count;
-					if (!_NVMController->Is_chip_busy_with_gc(rra.ChannelID, rra.ChipID))
-					{
-						rra.DieID = 0;
-						rra.PlaneID = 0;
-						break;
-					}
-				}
-				rra.ChipID = (rra.ChipID + 1) % chip_no_per_channel;
-			}
-		}
-		/*flash_channel_ID_type channel = rra.ChannelID + 1;
-		rra.ChannelID = channel % channel_count;
-		if (channel / channel_count != 0)
-		{
-			flash_chip_ID_type chip = rra.ChipID + 1;
-			rra.ChipID = chip % chip_no_per_channel;
-			if (chip / chip_no_per_channel != 0)
-			{
-				flash_die_ID_type die = rra.DieID + 1;
-				rra.DieID = die % die_no_per_chip;
-				if (die / die_no_per_chip != 0)
-				{
-					rra.PlaneID = (rra.PlaneID + 1) % plane_no_per_die;
-				}
-			}
-		}*/
-		target_address.ChannelID = rra.ChannelID;
-		target_address.ChipID = rra.ChipID;
-		target_address.DieID = rra.DieID;
-		target_address.PlaneID = rra.PlaneID;
-		rra.ChannelID = (rra.ChannelID + 1) % channel_count;
+		target_address.ChannelID = domain->Channel_ids[rra.ChannelID];
+		target_address.ChipID = domain->Chip_ids[rra.ChipID];
+		target_address.DieID = domain->Die_ids[rra.DieID];
+		target_address.PlaneID = domain->Plane_ids[rra.PlaneID];
+		rra.ChannelID = (rra.ChannelID + 1) % domain->Channel_no;
 		if (rra.ChannelID == 0)
 		{
-			rra.ChipID = (rra.ChipID + 1) % chip_no_per_channel;
+			rra.ChipID = (rra.ChipID + 1) % domain->Chip_no;
 			if (rra.ChipID == 0)
 			{
-				rra.DieID = (rra.DieID + 1) % die_no_per_chip;
+				rra.DieID = (rra.DieID + 1) % domain->Plane_no;
 				if (rra.DieID == 0)
 				{
-					rra.PlaneID = (rra.PlaneID + 1) % plane_no_per_die;
+					rra.PlaneID = (rra.PlaneID + 1) % domain->Die_no;
 				}
 			}
 		}
 	}
+
+	void Address_Mapping_Unit_Page_Level::round_robin_allocation_bypass_gc(NVM::FlashMemory::Physical_Page_Address& rra,
+		NVM::FlashMemory::Physical_Page_Address& target_address, AddressMappingDomain* domain)
+	{
+		// bypass GC CWDP
+		SSD_Components::NVM_PHY_ONFI_NVDDR2* _NVMController = (SSD_Components::NVM_PHY_ONFI_NVDDR2*)(ftl->PHY);
+		int attemp = domain->Channel_no * domain->Chip_no * domain->Die_no * domain->Plane_no + 1;
+		while (attemp > 0 && _NVMController->Is_chip_busy_with_gc(rra.ChannelID, rra.ChipID, rra.DieID, rra.PlaneID))
+		{
+			rra.ChannelID = (rra.ChannelID + 1) % domain->Channel_no;
+			if (rra.ChannelID == 0)
+			{
+				rra.ChipID = (rra.ChipID + 1) % domain->Chip_no;
+				if (rra.ChipID == 0)
+				{
+					rra.DieID = (rra.DieID + 1) % domain->Die_no;
+					if (rra.DieID == 0)
+					{
+						rra.PlaneID = (rra.PlaneID + 1) % domain->Plane_no;
+					}
+				}
+			}
+			attemp--;
+		}
+		
+		target_address.ChannelID = domain->Channel_ids[rra.ChannelID];
+		target_address.ChipID = domain->Chip_ids[rra.ChipID];
+		target_address.DieID = domain->Die_ids[rra.DieID];
+		target_address.PlaneID = domain->Plane_ids[rra.PlaneID];
+		rra.ChannelID = (rra.ChannelID + 1) % domain->Channel_no;
+		if (rra.ChannelID == 0)
+		{
+			rra.ChipID = (rra.ChipID + 1) % domain->Chip_no;
+			if (rra.ChipID == 0)
+			{
+				rra.DieID = (rra.DieID + 1) % domain->Plane_no;
+				if (rra.DieID == 0)
+				{
+					rra.PlaneID = (rra.PlaneID + 1) % domain->Die_no;
+				}
+			}
+		}
+	}
+
+	void Address_Mapping_Unit_Page_Level::reserved_allocation()
+	{
+	}
+
 	inline void Address_Mapping_Unit_Page_Level::Set_barrier_for_accessing_lpa(stream_id_type stream_id, LPA_type lpa)
 	{
 		auto itr = domains[stream_id]->Locked_LPAs.find(lpa);
@@ -1862,16 +1906,14 @@ namespace SSD_Components
 				{
 					LPA_type lpa = flash_controller->Get_metadata(addr.ChannelID, addr.ChipID, addr.DieID, addr.PlaneID, addr.BlockID, addr.PageID);
 					LPA_type ppa = domains[block->Stream_id]->GlobalMappingTable[lpa].PPA;
-					//std::cout << pageID << "\tppa\t" << ppa << "\tlpa\t" << lpa << "\n";
 					if (domains[block->Stream_id]->CMT->Exists(block->Stream_id, lpa))
 					{
 						ppa = domains[block->Stream_id]->CMT->Retrieve_ppa(block->Stream_id, lpa);
 					}
-					if (/*lpa != NO_LPA && */ppa != Convert_address_to_ppa(addr))
+					if (ppa != Convert_address_to_ppa(addr))
 					{
 						PRINT_ERROR("Inconsistency in the global mapping table when locking an LPA!")
 					}
-					//if (lpa != NO_LPA)
 					Set_barrier_for_accessing_lpa(block->Stream_id, lpa);
 				}
 			}

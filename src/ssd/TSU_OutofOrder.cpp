@@ -10,8 +10,8 @@ namespace SSD_Components
 		sim_time_type EraseReasonableSuspensionTimeForWrite, 
 		bool EraseSuspensionEnabled, bool ProgramSuspensionEnabled)
 		: TSU_Base(id, ftl, NVMController, Flash_Scheduling_Type::OUT_OF_ORDER, ChannelCount, chip_no_per_channel, DieNoPerChip, PlaneNoPerDie,
-			WriteReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForWrite,
-			EraseSuspensionEnabled, ProgramSuspensionEnabled), stream_count(StreamCount)
+			StreamCount, WriteReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForWrite,
+			EraseSuspensionEnabled, ProgramSuspensionEnabled)
 	{
 		UserReadTRQueue = new Flash_Transaction_Queue*[channel_count];
 		UserWriteTRQueue = new Flash_Transaction_Queue*[channel_count];
@@ -20,6 +20,7 @@ namespace SSD_Components
 		GCEraseTRQueue = new Flash_Transaction_Queue*[channel_count];
 		MappingReadTRQueue = new Flash_Transaction_Queue*[channel_count];
 		MappingWriteTRQueue = new Flash_Transaction_Queue*[channel_count];
+
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 		{
 			UserReadTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
@@ -29,6 +30,7 @@ namespace SSD_Components
 			GCEraseTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
 			MappingReadTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
 			MappingWriteTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
+
 			for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
 			{
 				UserReadTRQueue[channelID][chip_cntr].Set_id("User_Read_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
@@ -40,30 +42,10 @@ namespace SSD_Components
 				GCEraseTRQueue[channelID][chip_cntr].Set_id("GC_Erase_TR_Queue@" + std::to_string(channelID) + "@" + std::to_string(chip_cntr));
 			}
 		}
-
-		shared_total_time = new sim_time_type[stream_count];
-		alone_total_time = new sim_time_type[stream_count];
-		total_count = new unsigned long long[stream_count];
-		for (stream_id_type stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			shared_total_time[stream_id] = 0;
-			alone_total_time[stream_id] = 0;
-			total_count[stream_id] = 0;
-		}
 	}
 	
 	TSU_OutOfOrder::~TSU_OutOfOrder()
 	{
-		for (stream_id_type stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			std::cout << "==========\n";
-			std::cout << "shared\t" << shared_total_time[stream_id] / total_count[stream_id] / 1000
-				<< "\talone\t" << alone_total_time[stream_id] / total_count[stream_id] / 1000
-				<< "\tslowdown\t" << (double)shared_total_time[stream_id] / alone_total_time[stream_id]
-				<< "\n";
-		}
-		std::cout << "==========\n";
-
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 		{
 			delete[] UserReadTRQueue[channelID];
@@ -73,6 +55,7 @@ namespace SSD_Components
 			delete[] GCEraseTRQueue[channelID];
 			delete[] MappingReadTRQueue[channelID];
 			delete[] MappingWriteTRQueue[channelID];
+
 		}
 		delete[] UserReadTRQueue;
 		delete[] UserWriteTRQueue;
@@ -81,10 +64,6 @@ namespace SSD_Components
 		delete[] GCEraseTRQueue;
 		delete[] MappingReadTRQueue;
 		delete[] MappingWriteTRQueue;
-
-		delete[] shared_total_time;
-		delete[] alone_total_time;
-		delete[] total_count;
 
 	}
 
@@ -145,13 +124,8 @@ namespace SSD_Components
 		transaction_receive_slots.push_back(transaction);
 	}
 
-	void TSU_OutOfOrder::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
+	void TSU_OutOfOrder::handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction)
 	{
-		if (transaction->Source == Transaction_Source_Type::GC_WL || transaction->Source == Transaction_Source_Type::MAPPING)
-			return;
-		shared_total_time[transaction->Stream_id] += Simulator->Time() - transaction->Issue_time;
-		alone_total_time[transaction->Stream_id] += transaction->alone_time;
-		total_count[transaction->Stream_id] += 1;
 	}
 
 	void TSU_OutOfOrder::Schedule()
@@ -165,8 +139,10 @@ namespace SSD_Components
 		if (transaction_receive_slots.size() == 0)
 			return;
 
-		for(std::list<NVM_Transaction_Flash*>::iterator it = transaction_receive_slots.begin();
+		for (std::list<NVM_Transaction_Flash*>::iterator it = transaction_receive_slots.begin();
 			it != transaction_receive_slots.end(); it++)
+		{
+			(*it)->is_conflicting_gc = _NVMController->Is_chip_busy_with_gc((*it)->Address.ChannelID, (*it)->Address.ChipID);
 			switch ((*it)->Type)
 			{
 			case Transaction_Type::READ:
@@ -175,7 +151,6 @@ namespace SSD_Components
 				case Transaction_Source_Type::CACHE:
 				case Transaction_Source_Type::USERIO:
 					estimate_alone_time(*it, &UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID]);
-					estimate_shared_time(*it, &UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID]);
 					UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
 					break;
 				case Transaction_Source_Type::MAPPING:
@@ -194,7 +169,6 @@ namespace SSD_Components
 				case Transaction_Source_Type::CACHE:
 				case Transaction_Source_Type::USERIO:
 					estimate_alone_time(*it, &UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID]);
-					estimate_shared_time(*it, &UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID]);
 					UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
 					break;
 				case Transaction_Source_Type::MAPPING:
@@ -213,6 +187,7 @@ namespace SSD_Components
 			default:
 				break;
 			}
+		}
 
 
 		for (flash_channel_ID_type channelID = 0; channelID < channel_count; channelID++)
@@ -233,7 +208,7 @@ namespace SSD_Components
 	
 	void TSU_OutOfOrder::estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue)
 	{
-		sim_time_type chip_busy_time = 0, read_waiting_last_time = 0, write_waiting_last_time = 0;
+		sim_time_type chip_busy_time = 0, waiting_last_time = 0;
 		NVM_Transaction_Flash* chip_tr = _NVMController->Is_chip_busy_with_stream(transaction);
 		if (chip_tr && _NVMController->Expected_finish_time(chip_tr) > Simulator->Time())
 		{
@@ -247,63 +222,52 @@ namespace SSD_Components
 				--itr_it;
 				if ((*itr_it)->Stream_id == transaction->Stream_id)
 				{
-					if ((*itr_it)->Type == Transaction_Type::READ)
-						read_waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
-					else if ((*itr_it)->Type == Transaction_Type::WRITE)
-						write_waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
+					waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
 				}
 			} while (itr_it != queue->begin());
 		}
-		read_waiting_last_time += read_waiting_last_time / 2;
-		write_waiting_last_time /= 2;
-		transaction->alone_time = chip_busy_time + read_waiting_last_time + write_waiting_last_time
+		waiting_last_time = user_alone_time(waiting_last_time, transaction->Type);
+		transaction->alone_time = chip_busy_time + waiting_last_time
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
-	void TSU_OutOfOrder::estimate_shared_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue)
+	void TSU_OutOfOrder::adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
+		Transaction_Source_Type source, Flash_Transaction_Queue* queue)
 	{
-		sim_time_type chip_busy_time = 0, waiting_last_time = 0;
-		NVM_Transaction_Flash* chip_tr = _NVMController->Is_chip_busy_with_stream(transaction);
-		if (chip_tr && _NVMController->Expected_finish_time(chip_tr) > Simulator->Time())
+		if (source == Transaction_Source_Type::CACHE || source == Transaction_Source_Type::USERIO)
 		{
-			chip_busy_time = _NVMController->Expected_finish_time(chip_tr) - Simulator->Time();
+			adjust_time = user_alone_time(adjust_time, type);
 		}
-		for (auto itr_it = queue->begin(); itr_it != queue->end(); ++itr_it)
+		else if (source == Transaction_Source_Type::GC_WL)
 		{
-			waiting_last_time += _NVMController->Expected_command_time(*itr_it) + _NVMController->Expected_transfer_time(*itr_it);
+			adjust_time = gc_alone_time(adjust_time, type);
 		}
-		transaction->shared_time = chip_busy_time + waiting_last_time / 2
-			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
-	}
-
-	double TSU_OutOfOrder::proportional_slowdown(stream_id_type gc_stream_id)
-	{
-		double min_slowdown = INT_MAX;
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		else if (source == Transaction_Source_Type::MAPPING)
 		{
-			if (alone_total_time[stream_id])
+			adjust_time = mapping_alone_time(adjust_time, type);
+		}
+		for (auto it = queue->begin(); it != queue->end(); ++it)
+		{
+			if (dispatched_stream_id == (*it)->Stream_id)
 			{
-				min_slowdown = std::min(min_slowdown, (double)shared_total_time[stream_id] / alone_total_time[stream_id]);
+				(*it)->alone_time += adjust_time;
 			}
 		}
-		double slowdown = (double)shared_total_time[gc_stream_id] / (1e-10 + alone_total_time[gc_stream_id]);
-		//std::cout << "slowdown\t" << shared_total_time[gc_stream_id] << "\t" << alone_total_time[gc_stream_id] << "\n";
-		return min_slowdown / (1e-10 + slowdown);
 	}
 
-	double TSU_OutOfOrder::fairness()
+	size_t TSU_OutOfOrder::GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
-		double min_slowdown = DBL_MAX, max_slowdown = -1;
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		return GCReadTRQueue[channel_id][chip_id].size() + GCWriteTRQueue[channel_id][chip_id].size() + GCEraseTRQueue[channel_id][chip_id].size();
+	}
+
+	size_t TSU_OutOfOrder::UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	{
+		size_t size = 0;
+		for (auto& it : UserWriteTRQueue[channel_id][chip_id])
 		{
-			if (alone_total_time[stream_id])
-			{
-				double slowdown = (double)shared_total_time[stream_id] / alone_total_time[stream_id];
-				min_slowdown = std::min(min_slowdown, slowdown);
-				max_slowdown = std::max(max_slowdown, slowdown);
-			}
+			if ((*it).Stream_id == gc_stream_id) ++size;
 		}
-		return max_slowdown < 0 ? 1.0 : min_slowdown / max_slowdown;
+		return size;
 	}
 
 	bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
@@ -386,10 +350,23 @@ namespace SSD_Components
 				{
 					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 					{
+						stream_id_type dispatched_stream_id = (*it)->Stream_id;
+						sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+							+ _NVMController->Expected_command_time(*it);
+						Transaction_Type type = (*it)->Type;
+						Transaction_Source_Type source = (*it)->Source;
 						(*it)->SuspendRequired = suspensionRequired;
 						planeVector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						sourceQueue1->remove(it++);
+						if (source == Transaction_Source_Type::MAPPING
+							|| source == Transaction_Source_Type::GC_WL)
+						{
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID]);
+						}
+						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID]);
 						continue;
 					}
 				}
@@ -403,10 +380,23 @@ namespace SSD_Components
 					{
 						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 						{
+							stream_id_type dispatched_stream_id = (*it)->Stream_id;
+							sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+								+ _NVMController->Expected_command_time(*it);
+							Transaction_Type type = (*it)->Type;
+							Transaction_Source_Type source = (*it)->Source;
 							(*it)->SuspendRequired = suspensionRequired;
 							planeVector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
 							sourceQueue2->remove(it++);
+							if (source == Transaction_Source_Type::MAPPING
+								|| source == Transaction_Source_Type::GC_WL)
+							{
+								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+									&UserReadTRQueue[chip->ChannelID][chip->ChipID]);
+							}
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID]);
 							continue;
 						}
 					}
@@ -484,10 +474,23 @@ namespace SSD_Components
 				{
 					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 					{
+						stream_id_type dispatched_stream_id = (*it)->Stream_id;
+						sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+							+ _NVMController->Expected_command_time(*it);
+						Transaction_Type type = (*it)->Type;
+						Transaction_Source_Type source = (*it)->Source;
 						(*it)->SuspendRequired = suspensionRequired;
 						planeVector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
 						sourceQueue1->remove(it++);
+						if (source == Transaction_Source_Type::MAPPING
+							|| source == Transaction_Source_Type::GC_WL)
+						{
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID]);
+						}
+						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID]);
 						continue;
 					}
 				}
@@ -501,10 +504,23 @@ namespace SSD_Components
 					{
 						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 						{
+							stream_id_type dispatched_stream_id = (*it)->Stream_id;
+							sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+								+ _NVMController->Expected_command_time(*it);
+							Transaction_Type type = (*it)->Type;
+							Transaction_Source_Type source = (*it)->Source;
 							(*it)->SuspendRequired = suspensionRequired;
 							planeVector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
 							sourceQueue2->remove(it++);
+							if (source == Transaction_Source_Type::MAPPING
+								|| source == Transaction_Source_Type::GC_WL)
+							{
+								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+									&UserWriteTRQueue[chip->ChannelID][chip->ChipID]);
+							}
+							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID]);
 							continue;
 						}
 					}
@@ -539,9 +555,18 @@ namespace SSD_Components
 			{
 				if (((NVM_Transaction_Flash_ER*)*it)->Page_movement_activities.size() == 0 && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
 				{
+					stream_id_type dispatched_stream_id = (*it)->Stream_id;
+					sim_time_type adjust_time = _NVMController->Expected_transfer_time(*it)
+						+ _NVMController->Expected_command_time(*it);
+					Transaction_Type type = (*it)->Type;
 					planeVector |= 1 << (*it)->Address.PlaneID;
 					transaction_dispatch_slots.push_back(*it);
 					source_queue->remove(it++);
+					adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
+						&UserReadTRQueue[chip->ChannelID][chip->ChipID]);
+					adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
+						&UserWriteTRQueue[chip->ChannelID][chip->ChipID]);
+					continue;
 				}
 				it++;
 			}
@@ -552,8 +577,11 @@ namespace SSD_Components
 		}
 		return true;
 	}
+
 	void TSU_OutOfOrder::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
+		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
+			return;
 		if (!service_read_transaction(chip))
 			if (!service_write_transaction(chip))
 				service_erase_transaction(chip);

@@ -113,6 +113,18 @@ namespace SSD_Components {
 		return NULL;
 	}
 
+	bool NVM_PHY_ONFI_NVDDR2::Is_chip_busy_with_gc(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id,
+		flash_block_ID_type die_id, flash_plane_ID_type plane_id)
+	{
+		ChipBookKeepingEntry* chipBKE = &bookKeepingTable[channel_id][chip_id];
+		for (auto& tr : chipBKE->Die_book_keeping_records[die_id].ActiveTransactions)
+		{
+			if (tr->Address.PlaneID == plane_id && tr->Source == Transaction_Source_Type::GC_WL)
+				return true;
+		}
+		return false;
+	}
+
 	bool NVM_PHY_ONFI_NVDDR2::Is_chip_busy_with_gc(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		ChipBookKeepingEntry* chipBKE = &bookKeepingTable[channel_id][chip_id];

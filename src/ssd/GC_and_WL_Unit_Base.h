@@ -10,6 +10,11 @@
 #include "NVM_PHY_ONFI.h"
 #include <fstream>
 #include <iomanip>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include "../exec/Externer.h"
+
 
 namespace SSD_Components
 {
@@ -45,6 +50,7 @@ namespace SSD_Components
 			unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int sector_no_per_page,
 			bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane,
 			bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold, int seed);
+		virtual ~GC_and_WL_Unit_Base() {}
 		void Setup_triggers();
 		void Start_simulation();
 		void Validate_simulation_config();
@@ -96,6 +102,9 @@ namespace SSD_Components
 		unsigned int block_no_per_plane;
 		unsigned int pages_no_per_block;
 		unsigned int sector_no_per_page;
+
+		void record_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address);
+		std::unordered_map<std::string, float> get_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address);
 	};
 }
 

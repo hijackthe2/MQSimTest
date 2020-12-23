@@ -69,9 +69,9 @@
     <ClCompile Include="src\ssd\ONFI_Channel_Base.cpp" />
     <ClCompile Include="src\ssd\ONFI_Channel_NVDDR2.cpp" />
     <ClCompile Include="src\ssd\Queue_Probe.cpp" />
+    <ClCompile Include="src\ssd\TSU_SimpleFLIN.cpp" />
     <ClCompile Include="src\ssd\Stats.cpp" />
     <ClCompile Include="src\ssd\TSU_Base.cpp" />
-    <ClCompile Include="src\ssd\TSU_FACTS.cpp" />
     <ClCompile Include="src\ssd\TSU_FLIN.cpp" />
     <ClCompile Include="src\ssd\TSU_OutofOrder.cpp" />
     <ClCompile Include="src\ssd\TSU_SpeedLimit.cpp" />
@@ -86,6 +86,7 @@
   <ItemGroup>
     <ClInclude Include="src\exec\Device_Parameter_Set.h" />
     <ClInclude Include="src\exec\Execution_Parameter_Set.h" />
+    <ClInclude Include="src\exec\Externer.h" />
     <ClInclude Include="src\exec\Flash_Parameter_Set.h" />
     <ClInclude Include="src\exec\Global.h" />
     <ClInclude Include="src\exec\Host_Parameter_Set.h" />
@@ -153,10 +154,10 @@
     <ClInclude Include="src\ssd\ONFI_Channel_Base.h" />
     <ClInclude Include="src\ssd\ONFI_Channel_NVDDR2.h" />
     <ClInclude Include="src\ssd\Queue_Probe.h" />
+    <ClInclude Include="src\ssd\TSU_SimpleFLIN.h" />
     <ClInclude Include="src\ssd\SSD_Defs.h" />
     <ClInclude Include="src\ssd\Stats.h" />
     <ClInclude Include="src\ssd\TSU_Base.h" />
-    <ClInclude Include="src\ssd\TSU_FACTS.h" />
     <ClInclude Include="src\ssd\TSU_FLIN.h" />
     <ClInclude Include="src\ssd\TSU_OutofOrder.h" />
     <ClInclude Include="src\ssd\TSU_SpeedLimit.h" />
@@ -175,10 +176,9 @@
     <ClInclude Include="src\utils\XMLWriter.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include=".gitignore" />
-    <None Include="model.pyx" />
     <None Include="README.md" />
-    <None Include="setup.py" />
+    <None Include="src\ml_module\model.pyx" />
+    <None Include="src\ml_module\setup.py" />
   </ItemGroup>
   <ItemGroup>
     <Xml Include="ssdconfig.xml" />

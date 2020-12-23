@@ -23,7 +23,7 @@ endef
 all: checkdirs MQSim
 
 MQSim: $(OBJ)
-	$(LD) $^ -o $@ -lpython3.5m -lpthread -ldl -lutil -lm  ./model.cpython-35m-x86_64-linux-gnu.so
+	$(LD) $^ -o $@ -lpython3.5m -lpthread -ldl -lutil -lm  ./src/ml_module/model.cpython-35m-x86_64-linux-gnu.so
 
 checkdirs: $(BUILD_DIR)
 

@@ -19,27 +19,16 @@ namespace SSD_Components
 			dynamic_wearleveling_enabled, static_wearleveling_enabled, static_wearleveling_threshold, seed)
 	{
 		rga_set_size = (unsigned int)log2(block_no_per_plane);
-		bitmap = new bool**** [channel_count];
+
+		records.resize(channel_count);
 		for (unsigned int channel_id = 0; channel_id < channel_count; ++channel_id)
 		{
-			bitmap[channel_id] = new bool*** [chip_no_per_channel];
-			for (unsigned int chip_id = 0; chip_id < chip_no_per_channel; ++chip_id)
-			{
-				bitmap[channel_id][chip_id] = new bool** [die_no_per_chip];
-				for (unsigned int die_id = 0; die_id < die_no_per_chip; ++die_id)
-				{
-					bitmap[channel_id][chip_id][die_id] = new bool* [plane_no_per_die];
-					for (unsigned int plane_id = 0; plane_id < plane_no_per_die; ++plane_id)
-					{
-						bitmap[channel_id][chip_id][die_id][plane_id] = new bool[block_no_per_plane];
-						for (unsigned int block_id = 0; block_id < block_no_per_plane; ++block_id)
-						{
-							bitmap[channel_id][chip_id][die_id][plane_id][block_id] = false;
-						}
-					}
-				}
-			}
+			records[channel_id].resize(chip_no_per_channel);
 		}
+	}
+
+	GC_and_WL_Unit_Page_Level::~GC_and_WL_Unit_Page_Level()
+	{
 	}
 	
 	bool GC_and_WL_Unit_Page_Level::GC_is_in_urgent_mode(const NVM::FlashMemory::Flash_Chip* chip)
@@ -150,77 +139,39 @@ namespace SSD_Components
 			Block_Pool_Slot_Type* block = &pbke->Blocks[gc_candidate_block_id];
 			if (block->Current_page_write_index == 0 || block->Invalid_page_count == 0)//No invalid page to erase
 				return;
-
-			/*// plane
-			double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
-			double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
-			double plane_free_page_percent = (double)pbke->Free_pages_count / pbke->Total_pages_count;
-			double plane_free_block_percent = (double)free_block_pool_size / block_no_per_plane;
-			// block
-			double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
-
-			// proportional slowdown
-			double proportional_slowdown_before = tsu->proportional_slowdown(block->Stream_id);
-			// fairness
-			double fairness_before = tsu->fairness();
-
-			// gc queue
-			bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
-
-			int res = predict_one_C(model, plane_invalid_page_percent, plane_valid_page_percent, plane_free_page_percent,
-				plane_free_block_percent, has_gc_transaction, proportional_slowdown_before, fairness_before);
-			if (res == 0)
-			{
+			if (block->Current_page_write_index < pages_no_per_block)//no need to erase a block which holds free pages
 				return;
-			}*/
+
+			// if it is above gc hard threshold, adjust whether chip is busy or not. idle -> execute gc. busy -> return function
+			if (free_block_pool_size >= block_pool_gc_hard_threshold && !block_manager->Can_execute_gc_wl(gc_candidate_address))
+				return;
+
+			std::unordered_map<std::string, float> info = get_gc_info(plane_address);
+			float pip = info["pip"], pvp = info["pvp"], pfb = info["pfb"];
+			float bip = info["bip"], bvp = info["bvp"];
+			float psd = info["psd"], f = info["f"];
+			float gt = info["gt"];
+			
+			// rfc
+			//if (rfc_predict(gc_classifier, pip, pvp, pfp, pfb, bip, gt, psd, f) == 0) return;
+
+			// knc
+			/*if (records[plane_address.ChannelID][plane_address.ChipID].size())
+			{
+				int label = records[plane_address.ChannelID][plane_address.ChipID].back() + 0.001 < f;
+				knc_update_training_set(gc_classifier, records[plane_address.ChannelID][plane_address.ChipID], label);
+				records[plane_address.ChannelID][plane_address.ChipID].clear();
+			}
+			if (knc_predict(gc_classifier, bip, gt, psd, f) == 0) return;
+			records[plane_address.ChannelID][plane_address.ChipID] = { bip, gt, psd, f };*/
 
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_erase_operations.insert(gc_candidate_block_id);
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
-			if (!bitmap[gc_candidate_address.ChannelID][gc_candidate_address.ChipID][gc_candidate_address.DieID][gc_candidate_address.PlaneID]
-				[gc_candidate_address.BlockID])
+			//if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
-				bitmap[gc_candidate_address.ChannelID][gc_candidate_address.ChipID][gc_candidate_address.DieID][gc_candidate_address.PlaneID]
-					[gc_candidate_address.BlockID] = true;
-				count++;
-			}
-			//std::cout << count << "\n";
-			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
-			{
-				//std::cout << "issue gc transaction\n";
-				// plane
-				double plane_invalid_page_percent = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
-				double plane_valid_page_percent = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
-				double plane_free_page_percent = (double)pbke->Free_pages_count / pbke->Total_pages_count;
-				double plane_free_block_percent = (double)free_block_pool_size / block_no_per_plane;
-				// block
-				double block_invalid_page_percent = (double)block->Invalid_page_count / pages_no_per_block;
-
-				// proportional slowdown
-				double proportional_slowdown_before0 = tsu->proportional_slowdown(0, plane_address.ChannelID, plane_address.ChipID);
-				double proportional_slowdown_before1 = tsu->proportional_slowdown(1, plane_address.ChannelID, plane_address.ChipID);
-				// fairness
-				double fairness_before = tsu->fairness(plane_address.ChannelID, plane_address.ChipID);
-
-				// gc queue
-				bool has_gc_transaction = tsu->GCEraseTRQueueSize(plane_address.ChannelID, plane_address.ChipID) > 0;
-
-				gc_fs << plane_invalid_page_percent << "\t" << plane_valid_page_percent << "\t" << plane_free_page_percent << "\t"
-					<< plane_free_block_percent << "\t" << block_invalid_page_percent << "\t" << has_gc_transaction << "\t"
-					<< proportional_slowdown_before0 << "\t" << proportional_slowdown_before1 << "\t" << fairness_before
-					<< "\t" << block->Stream_id << "\t" << 1 << "\t"
-					<< plane_address.ChannelID << "\t" << plane_address.ChipID << "\t"
-					<< plane_address.DieID << "\t" << plane_address.PlaneID
-					<< std::endl;
-
-				if (Stats::Total_gc_executions % 1000 == 0)
-				{
-					std::cout << "gc execte\t" << Stats::Total_gc_executions << "\t"
-						<< (double)free_block_pool_size / block_no_per_plane << "\t"
-						<< free_block_pool_size << "\t" << block->Stream_id << "\n";
-				}
-				Stats::Total_gc_executions++;
+				record_gc_info(plane_address);
 				tsu->Prepare_for_transaction_submit();
 
 				NVM_Transaction_Flash_ER* gc_erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, pbke->Blocks[gc_candidate_block_id].Stream_id, gc_candidate_address);
@@ -233,6 +184,9 @@ namespace SSD_Components
 						if (block_manager->Is_page_valid(block, pageID))
 						{
 							Stats::Total_page_movements_for_gc++;
+
+							bvp++;
+
 							gc_candidate_address.PageID = pageID;
 							if (use_copyback)
 							{
@@ -257,6 +211,7 @@ namespace SSD_Components
 					}
 				}
 				block->Erase_transaction = gc_erase_tr;
+
 				tsu->Submit_transaction(gc_erase_tr);
 
 				tsu->Schedule();

@@ -135,7 +135,7 @@ namespace Host_Components
 				Utils::Helper_Functions::Remove_cr(trace_line);
 				current_trace_line.clear();
 				Utils::Helper_Functions::Tokenize(trace_line, ASCIILineDelimiter, current_trace_line);
-				PRINT_MESSAGE("* Replay round "<< replay_counter << "of "<< total_replay_no << " started  for" << ID())
+				PRINT_MESSAGE("* Replay round "<< replay_counter << " of "<< total_replay_no << " started  for " << ID())
 			}
 			char* pEnd;
 			Simulator->Register_sim_event(time_offset + std::strtoll(current_trace_line[ASCIITraceTimeColumn].c_str(), &pEnd, 10), this);

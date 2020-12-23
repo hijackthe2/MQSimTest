@@ -28,6 +28,24 @@ namespace SSD_Components
 		random_pp_threshold = (unsigned int)(rho * pages_no_per_block);
 		if (block_pool_gc_threshold < max_ongoing_gc_reqs_per_plane)
 			block_pool_gc_threshold = max_ongoing_gc_reqs_per_plane;
+
+		unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
+		gc_fs.open("out/gc_info.txt", std::fstream::out);
+		gc_fs << std::fixed << std::setprecision(3);
+		gc_fs << "c\tw\td\tp\t" << "pip\t" << "pvp\t" << "pfp\t" << "pfb\t" << "bip\t" << "bvp\t" << "gt\t";
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << "s" + std::to_string(stream_id) << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << "sr" + std::to_string(stream_id) << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << "psd" + std::to_string(stream_id) << "\t";
+		}
+		gc_fs << "f\t" << "id\t" << "GC" << std::endl;
 	}
 
 	void GC_and_WL_Unit_Base::Setup_triggers()
@@ -95,6 +113,7 @@ namespace SSD_Components
 							}
 						}
 					}
+					_my_instance->record_gc_info(transaction->Address);
 					block->Erase_transaction = gc_wl_erase_tr;
 					_my_instance->tsu->Schedule();
 				}
@@ -298,5 +317,92 @@ namespace SSD_Components
 
 			tsu->Schedule();
 		}
+	}
+	void GC_and_WL_Unit_Base::record_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address)
+	{
+		PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(gc_plane_address);
+		Block_Pool_Slot_Type* block = &pbke->Blocks[gc_plane_address.BlockID];
+		unsigned int free_block_pool_size = pbke->Get_free_block_pool_size();
+		// plane
+		double pip = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
+		double pvp = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
+		double pfp = (double)pbke->Free_pages_count / pbke->Total_pages_count;
+		double pfb = (double)free_block_pool_size / block_no_per_plane;
+		// block
+		double bip = (double)block->Invalid_page_count / pages_no_per_block;
+		double bvp = 1 - bip;
+		// proportional slowdown
+		unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
+		std::vector<double> psd;
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			psd.push_back(tsu->proportional_slowdown(stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID));
+		}
+		// fairness
+		double fairness_before = tsu->fairness(gc_plane_address.ChannelID, gc_plane_address.ChipID);
+		// gc queue
+		bool has_gc_transaction = tsu->GCEraseTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0;
+		// write queue
+		std::vector<size_t> s;
+		std::vector<double> sr;
+		double total_size = 0;
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			s.push_back(tsu->UserWriteTRQueueSize(stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID));
+			total_size += s.back();
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			sr.push_back(total_size > 0 ? s[stream_id] / total_size : 0);
+		}
+
+		if (Stats::Total_gc_executions % 1000 == 0)
+		{
+			std::cout << "gc execte\t" << Stats::Total_gc_executions << "\t"
+				<< (double)free_block_pool_size / block_no_per_plane << "\t"
+				<< Simulator->Time() << "\t" << block->Stream_id << "\n";
+		}
+		Stats::Total_gc_executions++;
+		gc_fs << gc_plane_address.ChannelID << "\t" << gc_plane_address.ChipID << "\t"
+			<< gc_plane_address.DieID << "\t" << gc_plane_address.PlaneID << "\t"
+			<< pip << "\t" << pvp << "\t" << pfp << "\t" << pfb << "\t"
+			<< bip << "\t" << bvp << "\t"
+			<< has_gc_transaction << "\t";
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << s[stream_id] << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << sr[stream_id] << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << psd[stream_id] << "\t";
+		}
+		gc_fs << fairness_before << "\t" << block->Stream_id << "\t" << 1 << std::endl;
+		tsu->stat_gc_erase(block->Stream_id);
+	}
+	std::unordered_map<std::string, float> GC_and_WL_Unit_Base::get_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address)
+	{
+		std::unordered_map<std::string, float> info;
+		PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(gc_plane_address);
+		Block_Pool_Slot_Type* block = &pbke->Blocks[gc_plane_address.BlockID];
+		unsigned int free_block_pool_size = pbke->Get_free_block_pool_size();
+		// plane
+		info["pip"] = (float)pbke->Invalid_pages_count / pbke->Total_pages_count; // plane invalid page percent
+		info["pvp"] = (float)pbke->Valid_pages_count / pbke->Total_pages_count; // plane valid page percent
+		info["pfp"] = (float)pbke->Free_pages_count / pbke->Total_pages_count; // plane free page percent
+		info["pfb"] = (float)free_block_pool_size / block_no_per_plane; // plane free block percent
+		// block
+		info["bip"] = (float)block->Invalid_page_count / pages_no_per_block; // block invalid page percent
+		info["bvp"] = 1 - info["bip"];
+		// proportional slowdown
+		info["psd"] = (float)tsu->proportional_slowdown(block->Stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID); // proportional slowdown
+		// fairness
+		info["f"] = (float)tsu->fairness(gc_plane_address.ChannelID, gc_plane_address.ChipID); // fairness
+		// gc queue
+		info["gt"] = tsu->GCEraseTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0; // has gc transaction
+		return info;
 	}
 }

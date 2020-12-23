@@ -6,7 +6,6 @@
 #include "NVM_Transaction_Flash.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include <algorithm>
-#include "../exec/Global.h"
 #include <vector>
 
 namespace SSD_Components
@@ -29,12 +28,9 @@ namespace SSD_Components
 		void Start_simulation();
 		void Validate_simulation_config();
 		void Execute_simulator_event(MQSimEngine::Sim_Event* event);
-		void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
-		double proportional_slowdown(stream_id_type gc_stream_id);
-		double fairness();
-		double proportional_slowdown(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
-		double fairness(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		void handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction);
 		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		size_t UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	private:
 		Flash_Transaction_Queue** UserReadTRQueue;
@@ -45,9 +41,6 @@ namespace SSD_Components
 		Flash_Transaction_Queue** MappingReadTRQueue;
 		Flash_Transaction_Queue** MappingWriteTRQueue;
 
-		Flash_Transaction_Queue** UserTRQueue;
-
-		unsigned int stream_count;
 		unsigned int* user_read_limit_speed;
 		unsigned int* user_write_limit_speed;
 		const unsigned int min_user_read_arrival_count;
@@ -63,25 +56,6 @@ namespace SSD_Components
 		Flash_Transaction_Queue* UserReadTRBuffer;
 		Flash_Transaction_Queue* UserWriteTRBuffer;
 
-		sim_time_type* buffer_total_time;
-		sim_time_type* queue_total_time;
-		sim_time_type* backend_total_time;
-		sim_time_type* shared_total_time;
-		sim_time_type* alone_total_time;
-		sim_time_type* shared_read_total_time;
-		sim_time_type* alone_read_total_time;
-		sim_time_type* shared_write_total_time;
-		sim_time_type* alone_write_total_time;
-		unsigned long long* total_count;
-		unsigned long long* read_total_count;
-		unsigned long long* write_total_count;
-		double* slowdown;
-		unsigned long*** remain_in_read_queue_count;
-		unsigned long*** remain_in_write_queue_count;
-
-		sim_time_type*** alone_time_chip;
-		sim_time_type*** shared_time_chip;
-
 		void update(unsigned int* arrival_count, unsigned int* limit_speed, unsigned int max_arrival_count,
 			unsigned int middle_arrival_count, unsigned int min_arrival_count, std::vector<stream_id_type>& idx,
 			const unsigned int interval_time, int type);
@@ -95,17 +69,10 @@ namespace SSD_Components
 		unsigned int*** serviced_writes_since_last_GC;
 		const unsigned int GC_FLIN = 1000;
 
-		void estimate_alone_time(NVM_Transaction_Flash* transaction, unsigned long remain_count);
-		void estimate_shared_time(NVM_Transaction_Flash* transaction, unsigned long* remain_total_count);
+		void estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
 			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer,
 			flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
-
-		void adjust_shared_time(stream_id_type dispatch_stream_id, sim_time_type adjust_time, Transaction_Type type,
-			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer, bool exclusive,
-			flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
-		sim_time_type* waiting_alone_time();
-		sim_time_type* waiting_shared_time();
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
@@ -114,7 +81,7 @@ namespace SSD_Components
 
 		bool service_read_transaction0(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction0(NVM::FlashMemory::Flash_Chip* chip);
-		bool serviced_erase_transaction0(NVM::FlashMemory::Flash_Chip* chip);
+		bool service_erase_transaction0(NVM::FlashMemory::Flash_Chip* chip);
 	};
 }
 

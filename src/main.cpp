@@ -10,13 +10,16 @@
 #include "utils/rapidxml/rapidxml.hpp"
 #include "utils/DistributionTypes.h"
 #include "exec/Global.h"
+#include "exec/Externer.h"
+#include <io.h>
+#include <direct.h>
+// linux
+//#include <unistd.h>
+//#include <sys/stat.h>
+//#include <sys/types.h>
+
 
 using namespace std;
-
-fstream gc_fs;
-fstream tsu_fs;
-
-//PyObject* model;
 
 void command_line_args(char* argv[], string& input_file_path, string& workload_file_path)
 {
@@ -302,27 +305,27 @@ int main(int argc, char* argv[])
 	read_configuration_parameters(ssd_config_file_path, exec_params);
 	std::vector<std::vector<IO_Flow_Parameter_Set*>*>* io_scenarios = read_workload_definitions(workload_defs_file_path);
 
-	gc_fs.open("out/gc_info.txt", std::fstream::out);
-	gc_fs << std::fixed << std::setprecision(3);
-	gc_fs << "plane_invalid_page_percent\t" << "plane_valid_page_percent\t" << "plane_free_page_percent\t" << "plane_free_block_percent\t"
-		<< "block_invalid_page_percent\t" << "has_gc_transaction\t" << "proportional_slowdown_before0\t" << "proportional_slowdown_before1\t"
-		<< "fairness_before\t" << "gc_stream_id\t"
-		<< "GC\t" << "C\tW\tD\tP" << endl;
+	if (_access("out", 0) == -1 && _mkdir("out") == -1)
+	{
+		std::cout << "cannot create dir /out, which contains recorded statistics\n";
+	}
 
-	/*tsu_fs.open("out/tsu_info.txt", std::fstream::out);
-	tsu_fs << std::fixed << std::setprecision(3);
-	tsu_fs << "C\tW\tD\tP\t" << "proportional_slowdown_after\t" << "fairness_after\t" << "gc_stream_id" << endl;*/
+	//linux
+	/*if (access("out", F_OK) == -1 && mkdir("out", 0777) == -1)
+	{
+		std::cout << "cannot create dir /out, which contains recorded statistics\n";
+	}*/
 
 	/*PyImport_AppendInittab("model", PyInit_model);
 	Py_Initialize();
 	PyImport_ImportModule("model");
-	model = createPyClass();
-
 	testing();*/
 
 	int cntr = 1;
 	for (auto io_scen = io_scenarios->begin(); io_scen != io_scenarios->end(); io_scen++, cntr++)
 	{
+		//gc_classifier = init_rfc("");
+		//gc_classifier = knc_init(10, 50, 5);
 		time_t start_time = time(0);
 		char* dt = ctime(&start_time);
 		PRINT_MESSAGE("MQSim started at " << dt)
@@ -352,12 +355,10 @@ int main(int argc, char* argv[])
 
 		PRINT_MESSAGE("Writing results to output file .......");
 		collect_results(ssd, host, (workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml").c_str());
+		//delete_instance(gc_classifier);
 	}
-
-	//cin.get();
 	gc_fs.close();
-	/*tsu_fs.close();
-
-	Py_Finalize();*/
+	tsu_fs.close();
+	//Py_Finalize();
 	return 0;
 }

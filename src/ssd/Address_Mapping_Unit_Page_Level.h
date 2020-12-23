@@ -201,8 +201,11 @@ namespace SSD_Components
 
 		NVM::FlashMemory::Physical_Page_Address* round_robin_address;
 		NVM::FlashMemory::Physical_Page_Address* round_robin_mapping_address;
-		void allocate_round_robin_address_bypass_gc(NVM::FlashMemory::Physical_Page_Address& rra,
-			NVM::FlashMemory::Physical_Page_Address& target_address);
+		void round_robin_allocation_bypass_gc(NVM::FlashMemory::Physical_Page_Address& rra,
+			NVM::FlashMemory::Physical_Page_Address& target_address, AddressMappingDomain* domain);
+		void round_robin_allocation(NVM::FlashMemory::Physical_Page_Address& rra,
+			NVM::FlashMemory::Physical_Page_Address& target_address, AddressMappingDomain* domain);
+		void reserved_allocation();
 	};
 
 }

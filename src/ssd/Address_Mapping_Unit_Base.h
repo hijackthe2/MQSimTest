@@ -25,7 +25,7 @@ namespace SSD_Components
 		WCDP, WCPD, WDCP, WDPC, WPCD, WPDC,
 		DCWP, DCPW, DWCP, DWPC, DPCW, DPWC,
 		PCWD, PCDW, PWCD, PWDC, PDCW, PDWC,
-		RBGC
+		RBGC, RRA, RA
 	};
 	enum class CMT_Sharing_Mode { SHARED, EQUAL_SIZE_PARTITIONING };
 

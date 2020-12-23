@@ -11,16 +11,20 @@
 #include "Flash_Transaction_Queue.h"
 #include <limits.h>
 #include <float.h>
+#include "../exec/Externer.h"
+#include <fstream>
+#include <iomanip>
 
 namespace SSD_Components
 {
-	enum class Flash_Scheduling_Type { OUT_OF_ORDER, FLIN, SPEED_LIMIT, FACTS };
+	enum class Flash_Scheduling_Type { OUT_OF_ORDER, FLIN, SPEED_LIMIT, SIMPLE_FLIN };
 	class FTL;
 	class TSU_Base : public MQSimEngine::Sim_Object
 	{
 	public:
 		TSU_Base(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController, Flash_Scheduling_Type Type,
 			unsigned int Channel_no, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie,
+			unsigned int StreamCount,
 			bool EraseSuspensionEnabled, bool ProgramSuspensionEnabled,
 			sim_time_type WriteReasonableSuspensionTimeForRead,
 			sim_time_type EraseReasonableSuspensionTimeForRead,
@@ -50,11 +54,13 @@ namespace SSD_Components
 		*/
 		virtual void Schedule() = 0;
 		virtual void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
-		virtual double proportional_slowdown(stream_id_type gc_stream_id) = 0;
+		double proportional_slowdown(stream_id_type gc_stream_id);
 		virtual size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
-		virtual double fairness() = 0;
-		virtual double proportional_slowdown(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
-		virtual double fairness(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
+		virtual size_t UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
+		double fairness();
+		double proportional_slowdown(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		double fairness(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		void stat_gc_erase(stream_id_type stream_id) { number_of_gc[stream_id]++; }
 	protected:
 		FTL* ftl;
 		NVM_PHY_ONFI_NVDDR2* _NVMController;
@@ -77,12 +83,23 @@ namespace SSD_Components
 		virtual bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip) = 0;
 		// add function
 		virtual void service_transaction(NVM::FlashMemory::Flash_Chip* chip) = 0;
+		virtual void handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction) = 0;
 		static void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
 		static void handle_channel_idle_signal(flash_channel_ID_type);
 		static void handle_chip_idle_signal(NVM::FlashMemory::Flash_Chip* chip);
 
 		int opened_scheduling_reqs;
-		int count = 0;
+		unsigned int stream_count;
+		unsigned int* number_of_gc;
+		unsigned int read_conflict_gc, total_serviced_read;
+		unsigned int write_confict_gc, total_serviced_write;
+		sim_time_type* alone_time, * shared_time;
+		sim_time_type*** chip_level_alone_time, *** chip_level_shared_time;
+		unsigned int* total_count;
+
+		sim_time_type user_alone_time(sim_time_type waiting_time, Transaction_Type type);
+		sim_time_type gc_alone_time(sim_time_type waiting_time, Transaction_Type type);
+		sim_time_type mapping_alone_time(sim_time_type waiting_time, Transaction_Type type);
 	};
 }
 

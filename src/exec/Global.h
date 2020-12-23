@@ -3,12 +3,12 @@
 
 #include <fstream>
 #include <iomanip>
-//#include "../model.h"
+//#include "../ml_module/model.h"
 //#include <python3.5m/Python.h>
 
-extern std::fstream gc_fs;
-//extern std::fstream tsu_fs;
+std::fstream gc_fs;
+std::fstream tsu_fs;
 
-//extern PyObject* model;
+//PyObject* gc_classifier;
 
 #endif // !GLOBAL_H

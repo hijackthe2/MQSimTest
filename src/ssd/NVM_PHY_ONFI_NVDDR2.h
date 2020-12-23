@@ -105,6 +105,7 @@ namespace SSD_Components
 		sim_time_type Expected_transfer_time(NVM_Transaction_Flash* transaction);
 		sim_time_type Expected_command_time(NVM_Transaction_Flash* transaction);
 		NVM_Transaction_Flash* Is_chip_busy_with_stream(NVM_Transaction_Flash* transaction);
+		bool Is_chip_busy_with_gc(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id, flash_block_ID_type die_id, flash_plane_ID_type plane_id);
 		bool Is_chip_busy_with_gc(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		bool Is_chip_busy(NVM_Transaction_Flash* transaction);
 		void Change_memory_status_preconditioning(const NVM::NVM_Memory_Address* address, const void* status_info);

@@ -13,7 +13,7 @@
 #include "../ssd/TSU_OutofOrder.h"
 #include "../ssd/TSU_FLIN.h"
 #include "../ssd/TSU_SpeedLimit.h"
-#include "../ssd/TSU_FACTS.h"
+#include "../ssd/TSU_SimpleFLIN.h"
 #include "../ssd/ONFI_Channel_NVDDR2.h"
 #include "../ssd/NVM_PHY_ONFI_NVDDR2.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
@@ -183,12 +183,12 @@ SSD_Device::SSD_Device(Device_Parameter_Set* parameters, std::vector<IO_Flow_Par
 				parameters->Preferred_suspend_erase_time_for_read, parameters->Preferred_suspend_erase_time_for_write,
 				erase_suspension, program_suspension);
 			break;
-		case SSD_Components::Flash_Scheduling_Type::FACTS:
-			tsu = new SSD_Components::TSU_FACTS(ftl->ID() + ".TSU", ftl, static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY),
+		case SSD_Components::Flash_Scheduling_Type::SIMPLE_FLIN:
+			tsu = new SSD_Components::TSU_SIMPLE_FLIN(ftl->ID() + ".TSU", ftl, static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY),
 				parameters->Flash_Channel_Count, parameters->Chip_No_Per_Channel,
-				parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die,
-				(unsigned int)io_flows->size(), parameters->Preferred_suspend_write_time_for_read,
-				parameters->Preferred_suspend_erase_time_for_read, parameters->Preferred_suspend_erase_time_for_write,
+				parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die, parameters->Flash_Parameters.Page_Capacity,
+				10000000, 33554432, 262144, (unsigned int)io_flows->size(), 0.6, 1000,
+				parameters->Preferred_suspend_write_time_for_read, parameters->Preferred_suspend_erase_time_for_read, parameters->Preferred_suspend_erase_time_for_write,
 				erase_suspension, program_suspension);
 			break;
 		default:
