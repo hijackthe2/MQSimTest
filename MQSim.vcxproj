@@ -69,7 +69,7 @@
     <ClCompile Include="src\ssd\ONFI_Channel_Base.cpp" />
     <ClCompile Include="src\ssd\ONFI_Channel_NVDDR2.cpp" />
     <ClCompile Include="src\ssd\Queue_Probe.cpp" />
-    <ClCompile Include="src\ssd\TSU_SimpleFLIN.cpp" />
+    <ClCompile Include="src\ssd\TSU_SLFIFO.cpp" />
     <ClCompile Include="src\ssd\Stats.cpp" />
     <ClCompile Include="src\ssd\TSU_Base.cpp" />
     <ClCompile Include="src\ssd\TSU_FLIN.cpp" />
@@ -154,7 +154,7 @@
     <ClInclude Include="src\ssd\ONFI_Channel_Base.h" />
     <ClInclude Include="src\ssd\ONFI_Channel_NVDDR2.h" />
     <ClInclude Include="src\ssd\Queue_Probe.h" />
-    <ClInclude Include="src\ssd\TSU_SimpleFLIN.h" />
+    <ClInclude Include="src\ssd\TSU_SLFIFO.h" />
     <ClInclude Include="src\ssd\SSD_Defs.h" />
     <ClInclude Include="src\ssd\Stats.h" />
     <ClInclude Include="src\ssd\TSU_Base.h" />
