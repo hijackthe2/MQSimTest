@@ -14,6 +14,9 @@
 #include <vector>
 #include <unordered_map>
 #include "../exec/Externer.h"
+#include <limits.h>
+#include <float.h>
+#include <queue>
 
 
 namespace SSD_Components
@@ -27,8 +30,9 @@ namespace SSD_Components
 		RANDOM, RANDOM_P, RANDOM_PP,/*The RANDOM, RANDOM+, and RANDOM++ algorithms described in: "B. Van Houdt, A Mean
 									Field Model  for a Class of Garbage Collection Algorithms in Flash - based Solid
 									State Drives, SIGMETRICS, 2013".*/
-		FIFO						/*The FIFO algortihm described in P. Desnoyers, "Analytic  Modeling  of  SSD Write
+		FIFO,						/*The FIFO algortihm described in P. Desnoyers, "Analytic  Modeling  of  SSD Write
 									Performance, SYSTOR, 2012".*/
+		FBS							/*Fairness-based Block Selection*/
 	};
 
 	class Address_Mapping_Unit_Base;
@@ -64,6 +68,7 @@ namespace SSD_Components
 		bool Use_dynamic_wearleveling();
 		bool Use_static_wearleveling();
 		bool Stop_servicing_writes(const NVM::FlashMemory::Physical_Page_Address& plane_address);
+		unsigned int Get_valuable_gc() { return valuable_gc; }
 	protected:
 		GC_Block_Selection_Policy_Type block_selection_policy;
 		static GC_and_WL_Unit_Base * _my_instance;
@@ -103,8 +108,14 @@ namespace SSD_Components
 		unsigned int pages_no_per_block;
 		unsigned int sector_no_per_page;
 
-		void record_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address);
+		unsigned int valuable_gc = 0;
+		std::unordered_map<std::string, std::unordered_map<std::string, float>> snapshot;
+		void record_gc_info_when_issued(const NVM_Transaction_Flash* const erase);
 		std::unordered_map<std::string, float> get_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address);
+		std::unordered_map<std::string, float> gc_snapshot(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address);
+		int record_gc_info_when_finished(const std::unordered_map<std::string, float>& before,
+			const std::unordered_map<std::string, float>& after, const NVM::FlashMemory::Physical_Page_Address& address,
+			const stream_id_type stream_id, const NVM_Transaction_Flash_ER* const erase);
 	};
 }
 

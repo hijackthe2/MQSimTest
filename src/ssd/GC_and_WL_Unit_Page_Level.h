@@ -28,7 +28,6 @@ namespace SSD_Components
 		void Check_gc_required(const unsigned int free_block_pool_size, const NVM::FlashMemory::Physical_Page_Address& plane_address);
 	private:
 		NVM_PHY_ONFI * flash_controller;
-		std::vector<std::vector<std::vector<float>>> records; // cache unlabeled data for knc
 	};
 }
 #endif // !GC_AND_WL_UNIT_PAGE_LEVEL_H

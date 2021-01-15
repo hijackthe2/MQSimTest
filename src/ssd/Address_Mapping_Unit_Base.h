@@ -25,7 +25,8 @@ namespace SSD_Components
 		WCDP, WCPD, WDCP, WDPC, WPCD, WPDC,
 		DCWP, DCPW, DWCP, DWPC, DPCW, DPWC,
 		PCWD, PCDW, PWCD, PWDC, PDCW, PDWC,
-		RBGC, RRA, RA
+		RBGC, RRA, GRRA,
+		SLF_RBGC, SLF_RRA, SLF_GRRA // dispatch transaction first and then translate only works for ideal mapping table
 	};
 	enum class CMT_Sharing_Mode { SHARED, EQUAL_SIZE_PARTITIONING };
 
@@ -65,6 +66,7 @@ namespace SSD_Components
 		virtual NVM::FlashMemory::Physical_Page_Address Convert_ppa_to_address(const PPA_type ppa) = 0;
 		virtual void Convert_ppa_to_address(const PPA_type ppa, NVM::FlashMemory::Physical_Page_Address& address) = 0;
 		virtual PPA_type Convert_address_to_ppa(const NVM::FlashMemory::Physical_Page_Address& pageAddress) = 0;
+		virtual void translate_after_dispatched(NVM_Transaction_Flash* transaction) = 0;
 
 		/*********************************************************************************************************************
 		 These are system state consistency control functions that are used for garbage collection and wear-leveling execution.

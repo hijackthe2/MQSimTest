@@ -264,8 +264,14 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 		val = "RBGC";
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::RRA:
 		val = "RRA";
-	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::RA:
-		val = "RA";
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::GRRA:
+		val = "GRRA";
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
+		val = "SLF_RBGC";
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
+		val = "SLF_RRA";
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
+		val = "SLF_GRRA";
 	default:
 		break;
 	}
@@ -285,6 +291,21 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 		break;
 	case SSD_Components::Flash_Scheduling_Type::SL_FIFO:
 		val = "SL_FIFO";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::SL_FLIN:
+		val = "SL_FLIN";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::SIMPLE_FLIN:
+		val = "SIMPLE_FLIN";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::SLF_FIFO:
+		val = "SLF_FIFO";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::SLF_FLIN:
+		val = "SLF_FLIN";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::NP_FLIN:
+		val = "NP_FLIN";
 		break;
 	default:
 		break;
@@ -319,6 +340,9 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 		break;
 	case SSD_Components::GC_Block_Selection_Policy_Type::FIFO:
 		val = "FIFO";
+		break;
+	case SSD_Components::GC_Block_Selection_Policy_Type::FBS:
+		val = "FBS";
 		break;
 	default:
 		break;
@@ -580,8 +604,14 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::RBGC;
 				else if (strcmp(val.c_str(), "RRA") == 0)
 					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::RRA;
-				else if (strcmp(val.c_str(), "RA") == 0)
-					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::RA;
+				else if (strcmp(val.c_str(), "GRRA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::GRRA;
+				else if (strcmp(val.c_str(), "SLF_RBGC") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RBGC;
+				else if (strcmp(val.c_str(), "SLF_RRA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RRA;
+				else if (strcmp(val.c_str(), "SLF_GRRA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_GRRA;
 				else PRINT_ERROR("Unknown plane allocation scheme type specified in the SSD configuration file")
 			}
 			else if (strcmp(param->name(), "Transaction_Scheduling_Policy") == 0)
@@ -596,6 +626,16 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SPEED_LIMIT;
 				else if (strcmp(val.c_str(), "SL_FIFO") == 0)
 					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SL_FIFO;
+				else if (strcmp(val.c_str(), "SL_FLIN") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SL_FLIN;
+				else if (strcmp(val.c_str(), "SIMPLE_FLIN") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SIMPLE_FLIN;
+				else if (strcmp(val.c_str(), "SLF_FIFO") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SLF_FIFO;
+				else if (strcmp(val.c_str(), "SLF_FLIN") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SLF_FLIN;
+				else if (strcmp(val.c_str(), "NP_FLIN") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::NP_FLIN;
 				else PRINT_ERROR("Unknown transaction scheduling type specified in the SSD configuration file")
 			}
 			else if (strcmp(param->name(), "Overprovisioning_Ratio") == 0)
@@ -626,6 +666,8 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 					GC_Block_Selection_Policy = SSD_Components::GC_Block_Selection_Policy_Type::RANDOM_PP;
 				else if (strcmp(val.c_str(), "FIFO") == 0)
 					GC_Block_Selection_Policy = SSD_Components::GC_Block_Selection_Policy_Type::FIFO;
+				else if (strcmp(val.c_str(), "FBS") == 0)
+					GC_Block_Selection_Policy = SSD_Components::GC_Block_Selection_Policy_Type::FBS;
 				else PRINT_ERROR("Unknown GC block selection policy specified in the SSD configuration file")
 			}
 			else if (strcmp(param->name(), "Use_Copyback_for_GC") == 0)

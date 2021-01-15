@@ -21,31 +21,59 @@ namespace SSD_Components
 		_my_instance = this;
 		block_pool_gc_threshold = (unsigned int)(gc_threshold * (double)block_no_per_plane);
 		if (block_pool_gc_threshold < 1)
+		{
 			block_pool_gc_threshold = 1;
+			this->gc_threshold = (double)block_pool_gc_threshold / block_no_per_plane;
+		}
 		block_pool_gc_hard_threshold = (unsigned int)(gc_hard_threshold * (double)block_no_per_plane);
 		if (block_pool_gc_hard_threshold < 1)
+		{
 			block_pool_gc_hard_threshold = 1;
+			this->gc_hard_threshold = (double)block_pool_gc_threshold / block_no_per_plane;
+		}
 		random_pp_threshold = (unsigned int)(rho * pages_no_per_block);
 		if (block_pool_gc_threshold < max_ongoing_gc_reqs_per_plane)
 			block_pool_gc_threshold = max_ongoing_gc_reqs_per_plane;
 
 		unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
+		unsigned int max_psd_size = tsu->Get_max_psd_size();
+		valuable_gc = 0;
 		gc_fs.open("out/gc_info.txt", std::fstream::out);
-		gc_fs << std::fixed << std::setprecision(3);
-		gc_fs << "c\tw\td\tp\t" << "pip\t" << "pvp\t" << "pfp\t" << "pfb\t" << "bip\t" << "bvp\t" << "gt\t";
+		gc_fs << std::fixed << std::setprecision(5);
+		gc_fs << "c\tw\td\tp\t" << "pipb\tpvpb\tpfpb\tpfbb\t" << "bipb\tbvpb\t" << "gtb\tutb\t";
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
-			gc_fs << "s" + std::to_string(stream_id) << "\t";
+			gc_fs << "sb" + std::to_string(stream_id) << "\t";
 		}
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
-			gc_fs << "sr" + std::to_string(stream_id) << "\t";
+			gc_fs << "srb" + std::to_string(stream_id) << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < max_psd_size; ++stream_id)
+		{
+			gc_fs << "psdb" + std::to_string(stream_id) << "\t";
+		}
+		gc_fs << "fb\t";
+		size_t max_size = tsu->Get__NVMController()->Get_max_size() - 1;
+		for (unsigned int i = 0; i < max_size; ++i)
+		{
+			gc_fs << "gap" + std::to_string(i) << "\t";
+		}
+		gc_fs << "pipa\tpvpa\tpfpa\tpfba\t" << "bipa\tbvpa\t" << "gta\tuta\t";
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << "sa" + std::to_string(stream_id) << "\t";
 		}
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
-			gc_fs << "psd" + std::to_string(stream_id) << "\t";
+			gc_fs << "sra" + std::to_string(stream_id) << "\t";
 		}
-		gc_fs << "f\t" << "id\t" << "GC" << std::endl;
+		for (unsigned int stream_id = 0; stream_id < max_psd_size; ++stream_id)
+		{
+			gc_fs << "psda" + std::to_string(stream_id) << "\t";
+		}
+		gc_fs << "fa\t";
+		gc_fs << "ca\tcwoa\tid\t" << "GC" << std::endl;
 	}
 
 	void GC_and_WL_Unit_Base::Setup_triggers()
@@ -56,6 +84,29 @@ namespace SSD_Components
 
 	void GC_and_WL_Unit_Base::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction)
 	{
+		if (transaction->Type == Transaction_Type::ERASE)
+		{
+			std::string key = std::to_string(transaction->Issue_time) + "-" + std::to_string(transaction->Address.ChannelID)
+				+ std::to_string(transaction->Address.ChipID) + std::to_string(transaction->Address.DieID)
+				+ std::to_string(transaction->Address.PlaneID);
+			std::unordered_map<std::string, float>& snapshot_before = _my_instance->snapshot[key];
+			std::unordered_map<std::string, float> snapshot_after = _my_instance->gc_snapshot(transaction->Address);
+			int GC = _my_instance->record_gc_info_when_finished(snapshot_before, snapshot_after, transaction->Address, transaction->Stream_id,
+				(NVM_Transaction_Flash_ER *)transaction);
+			_my_instance->valuable_gc += GC;
+			
+			// train
+			if (GC == 0)
+			{
+				float bip = snapshot_before["bip"];
+				int gt = (int)snapshot_before["gt"], ut = (int)snapshot_before["ut"];
+				float psd = snapshot_before["psd"], f = snapshot_before["f"];
+				//if (gc_classifier != NULL) train(gc_classifier, bip, gt, ut, psd, f, 0);
+			}
+
+			_my_instance->snapshot.erase(key);
+		}
+
 		PlaneBookKeepingType* pbke = &(_my_instance->block_manager->plane_manager[transaction->Address.ChannelID][transaction->Address.ChipID][transaction->Address.DieID][transaction->Address.PlaneID]);
 
 		switch (transaction->Source)
@@ -113,8 +164,8 @@ namespace SSD_Components
 							}
 						}
 					}
-					_my_instance->record_gc_info(transaction->Address);
 					block->Erase_transaction = gc_wl_erase_tr;
+					_my_instance->record_gc_info_when_issued(gc_wl_erase_tr);
 					_my_instance->tsu->Schedule();
 				}
 			return;
@@ -245,6 +296,9 @@ namespace SSD_Components
 				return false;
 
 		//The block shouldn't have an ongoing program request (all pages must already be written)
+		if (plane_record->Blocks[gc_wl_candidate_block_id].Ongoing_user_program_count
+			+ plane_record->Blocks[gc_wl_candidate_block_id].Ongoing_user_read_count > 0)
+			return false;
 		if (plane_record->Blocks[gc_wl_candidate_block_id].Ongoing_user_program_count > 0)
 			return false;
 
@@ -318,71 +372,24 @@ namespace SSD_Components
 			tsu->Schedule();
 		}
 	}
-	void GC_and_WL_Unit_Base::record_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address)
-	{
-		PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(gc_plane_address);
-		Block_Pool_Slot_Type* block = &pbke->Blocks[gc_plane_address.BlockID];
-		unsigned int free_block_pool_size = pbke->Get_free_block_pool_size();
-		// plane
-		double pip = (double)pbke->Invalid_pages_count / pbke->Total_pages_count;
-		double pvp = (double)pbke->Valid_pages_count / pbke->Total_pages_count;
-		double pfp = (double)pbke->Free_pages_count / pbke->Total_pages_count;
-		double pfb = (double)free_block_pool_size / block_no_per_plane;
-		// block
-		double bip = (double)block->Invalid_page_count / pages_no_per_block;
-		double bvp = 1 - bip;
-		// proportional slowdown
-		unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
-		std::vector<double> psd;
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			psd.push_back(tsu->proportional_slowdown(stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID));
-		}
-		// fairness
-		double fairness_before = tsu->fairness(gc_plane_address.ChannelID, gc_plane_address.ChipID);
-		// gc queue
-		bool has_gc_transaction = tsu->GCEraseTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0;
-		// write queue
-		std::vector<size_t> s;
-		std::vector<double> sr;
-		double total_size = 0;
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			s.push_back(tsu->UserWriteTRQueueSize(stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID));
-			total_size += s.back();
-		}
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			sr.push_back(total_size > 0 ? s[stream_id] / total_size : 0);
-		}
 
+	void GC_and_WL_Unit_Base::record_gc_info_when_issued(const NVM_Transaction_Flash* const erase)
+	{
+		std::string key = std::to_string(erase->Issue_time) + "-" + std::to_string(erase->Address.ChannelID)
+			+ std::to_string(erase->Address.ChipID) + std::to_string(erase->Address.DieID) + std::to_string(erase->Address.PlaneID);
+		snapshot[key] = gc_snapshot(erase->Address);
+		tsu->start_execute_gc();
+		unsigned int free_block_pool_size = block_manager->Get_plane_bookkeeping_entry(erase->Address)->Get_free_block_pool_size();
 		if (Stats::Total_gc_executions % 1000 == 0)
 		{
 			std::cout << "gc execte\t" << Stats::Total_gc_executions << "\t"
 				<< (double)free_block_pool_size / block_no_per_plane << "\t"
-				<< Simulator->Time() << "\t" << block->Stream_id << "\n";
+				<< Simulator->Time() << "\t" << erase->Stream_id << "\n";
 		}
 		Stats::Total_gc_executions++;
-		gc_fs << gc_plane_address.ChannelID << "\t" << gc_plane_address.ChipID << "\t"
-			<< gc_plane_address.DieID << "\t" << gc_plane_address.PlaneID << "\t"
-			<< pip << "\t" << pvp << "\t" << pfp << "\t" << pfb << "\t"
-			<< bip << "\t" << bvp << "\t"
-			<< has_gc_transaction << "\t";
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			gc_fs << s[stream_id] << "\t";
-		}
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			gc_fs << sr[stream_id] << "\t";
-		}
-		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
-		{
-			gc_fs << psd[stream_id] << "\t";
-		}
-		gc_fs << fairness_before << "\t" << block->Stream_id << "\t" << 1 << std::endl;
-		tsu->stat_gc_erase(block->Stream_id);
+		tsu->stat_gc_erase(erase->Stream_id);
 	}
+
 	std::unordered_map<std::string, float> GC_and_WL_Unit_Base::get_gc_info(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address)
 	{
 		std::unordered_map<std::string, float> info;
@@ -398,11 +405,145 @@ namespace SSD_Components
 		info["bip"] = (float)block->Invalid_page_count / pages_no_per_block; // block invalid page percent
 		info["bvp"] = 1 - info["bip"];
 		// proportional slowdown
-		info["psd"] = (float)tsu->proportional_slowdown(block->Stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID); // proportional slowdown
-		// fairness
+		info["psd"] = (float)tsu->proportional_slowdown(block->Stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID);
+		std::vector<double> v;
+		tsu->proportional_slowdown_ordered_list(gc_plane_address.ChannelID, gc_plane_address.ChipID, v);
+		for (size_t i = 0, sz = v.size(); i < sz; ++i)
+		{
+			info["psd" + std::to_string(i)] = (float)v[i];
+		}
 		info["f"] = (float)tsu->fairness(gc_plane_address.ChannelID, gc_plane_address.ChipID); // fairness
-		// gc queue
-		info["gt"] = tsu->GCEraseTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0; // has gc transaction
+		// tsu
+		info["gt"] = tsu->GCTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0; // has gc transaction
+		info["ut"] = tsu->UserTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0; // has user transaction
 		return info;
+	}
+	std::unordered_map<std::string, float> GC_and_WL_Unit_Base::gc_snapshot(const NVM::FlashMemory::Physical_Page_Address& gc_plane_address)
+	{
+		std::unordered_map<std::string, float> snapshot;
+		PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(gc_plane_address);
+		Block_Pool_Slot_Type* block = &pbke->Blocks[gc_plane_address.BlockID];
+		unsigned int free_block_pool_size = pbke->Get_free_block_pool_size();
+		// plane
+		snapshot["pip"] = (float)pbke->Invalid_pages_count / pbke->Total_pages_count;
+		snapshot["pvp"] = (float)pbke->Valid_pages_count / pbke->Total_pages_count;
+		snapshot["pfp"] = (float)pbke->Free_pages_count / pbke->Total_pages_count;
+		snapshot["pfb"] = (float)free_block_pool_size / block_no_per_plane;
+		// block
+		snapshot["bip"] = (float)block->Invalid_page_count / pages_no_per_block;
+		snapshot["bvp"] = 1 - snapshot["bip"];
+		unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
+		// fairness
+		snapshot["f"] = (float)tsu->fairness(gc_plane_address.ChannelID, gc_plane_address.ChipID);
+		// tsu
+		snapshot["gt"] = tsu->GCTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID) > 0;
+		float user_size = (float)tsu->UserTRQueueSize(gc_plane_address.ChannelID, gc_plane_address.ChipID);
+		snapshot["ut"] = user_size > 0;
+		double total_size = 0;
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			std::string str = std::to_string(stream_id);
+			float s = (float)tsu->UserTRQueueSize(stream_id, gc_plane_address.ChannelID, gc_plane_address.ChipID);
+			// size
+			snapshot["s" + str] = s;
+			// size rate
+			snapshot["sr" + str] = (float)(s / (1e-10 + user_size));
+		}
+		// proportional slowdown
+		std::vector<double> v;
+		tsu->proportional_slowdown_ordered_list(gc_plane_address.ChannelID, gc_plane_address.ChipID, v);
+		for (size_t i = 0, sz = v.size(); i < sz; ++i)
+		{
+			snapshot["psd" + std::to_string(i)] = (float)v[i];
+		}
+		NVM_PHY_ONFI_NVDDR2* controller = tsu->Get__NVMController();
+		NVM::FlashMemory::Flash_Chip* flash_chip = controller->Get_chip(gc_plane_address.ChannelID, gc_plane_address.ChipID);
+		sim_time_type gc_time = flash_chip->Get_command_execution_latency((int)Transaction_Type::ERASE, 0);
+		for (flash_page_ID_type pageID = 0; pageID < block->Current_page_write_index; pageID++)
+		{
+			if (block_manager->Is_page_valid(block, pageID))
+			{
+				gc_time += flash_chip->Get_command_execution_latency((int)Transaction_Type::READ, pageID);
+				gc_time += flash_chip->Get_command_execution_latency((int)Transaction_Type::WRITE, pageID);
+				gc_time += 2 * controller->Expected_transfer_time(sector_no_per_page * SECTOR_SIZE_IN_BYTE, gc_plane_address.ChannelID);
+			}
+		}
+		std::queue<sim_time_type> recently_usr_time;
+		controller->Get_plane_recently_serviced_usr_time(gc_plane_address, recently_usr_time);
+		size_t max_size = std::max(recently_usr_time.size(), controller->Get_max_size()) - 1;
+		sim_time_type t = 0;
+		if (!recently_usr_time.empty())
+		{
+			t = recently_usr_time.front();
+			recently_usr_time.pop();
+		}
+		for (unsigned int i = 0; i < max_size; ++i)
+		{
+			float f = 1;
+			if (!recently_usr_time.empty())
+			{
+				f = (float)(recently_usr_time.front() - t) / gc_time;
+				t = recently_usr_time.front();
+				recently_usr_time.pop();
+			}
+			snapshot["gap" + std::to_string(i)] = std::min(f, (float)1);
+		}
+		return snapshot;
+	}
+	int GC_and_WL_Unit_Base::record_gc_info_when_finished(const std::unordered_map<std::string, float>& before,
+		const std::unordered_map<std::string, float>& after, const NVM::FlashMemory::Physical_Page_Address& address,
+		const stream_id_type stream_id, const NVM_Transaction_Flash_ER* const erase)
+	{
+		std::vector<float> snapshot_vector;
+		unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
+		gc_fs << address.ChannelID << "\t" << address.ChipID << "\t" << address.DieID << "\t" << address.PlaneID << "\t"
+			<< before.at("pip") << "\t" << before.at("pvp") << "\t" << before.at("pfp") << "\t" << before.at("pfb") << "\t"
+			<< before.at("bip") << "\t" << before.at("bvp") << "\t"
+			<< before.at("gt") << "\t" << before.at("ut") << "\t";
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << before.at("s" + std::to_string(stream_id)) << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << before.at("sr" + std::to_string(stream_id)) << "\t";
+		}
+		size_t max_psd_size = tsu->Get_max_psd_size();
+		for (unsigned int stream_id = 0; stream_id < max_psd_size; ++stream_id)
+		{
+			gc_fs << before.at("psd" + std::to_string(stream_id)) << "\t";
+		}
+		gc_fs << before.at("f") << "\t";
+		size_t max_size = tsu->Get__NVMController()->Get_max_size() - 1;
+		for (unsigned int i = 0; i < max_size; ++i)
+		{
+			gc_fs << before.at("gap" + std::to_string(i)) << "\t";
+		}
+		gc_fs << after.at("pip") << "\t" << after.at("pvp") << "\t" << after.at("pfp") << "\t" << after.at("pfb") << "\t"
+			<< after.at("bip") << "\t" << after.at("bvp") << "\t"
+			<< after.at("gt") << "\t" << after.at("ut") << "\t";
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << after.at("s" + std::to_string(stream_id)) << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			gc_fs << after.at("sr" + std::to_string(stream_id)) << "\t";
+		}
+		for (unsigned int stream_id = 0; stream_id < max_psd_size; ++stream_id)
+		{
+			gc_fs << after.at("psd" + std::to_string(stream_id)) << "\t";
+		}
+		gc_fs << after.at("f") << "\t"
+			<< (int)(erase->conflict_with_gc_read_count + erase->conflict_with_gc_write_count + erase->conflict_with_gc_erase_count > 0) << "\t"
+			<< (int)(erase->conflict_with_others) << "\t"
+			<< stream_id << "\t";
+		bool gt_ut = true;
+		if (gc_hard_threshold <= before.at("pfb") && before.at("pfb") <= gc_threshold) gt_ut = (before.at("ut") == 0 && before.at("gt") == 0);
+		bool f = after.at("f") > before.at("f");
+		if (before.at("ut") == 0 && before.at("gt") == 0) f = after.at("f") >= before.at("f");
+		bool GC = (f && !erase->conflict_with_others && gt_ut);
+		gc_fs << (int)GC << std::endl;
+		return (int)GC;
 	}
 }

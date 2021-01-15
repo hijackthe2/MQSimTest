@@ -128,7 +128,7 @@ namespace SSD_Components
 	{
 	}
 
-	void TSU_OutOfOrder::Schedule()
+	void TSU_OutOfOrder::Schedule0()
 	{
 		opened_scheduling_reqs--;
 		if (opened_scheduling_reqs > 0)
@@ -142,7 +142,7 @@ namespace SSD_Components
 		for (std::list<NVM_Transaction_Flash*>::iterator it = transaction_receive_slots.begin();
 			it != transaction_receive_slots.end(); it++)
 		{
-			(*it)->is_conflicting_gc = _NVMController->Is_chip_busy_with_gc((*it)->Address.ChannelID, (*it)->Address.ChipID);
+			_NVMController->test_transaction_for_conflicting_with_gc(*it);
 			switch ((*it)->Type)
 			{
 			case Transaction_Type::READ:
@@ -255,19 +255,28 @@ namespace SSD_Components
 		}
 	}
 
-	size_t TSU_OutOfOrder::GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_OutOfOrder::GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		return GCReadTRQueue[channel_id][chip_id].size() + GCWriteTRQueue[channel_id][chip_id].size() + GCEraseTRQueue[channel_id][chip_id].size();
 	}
 
-	size_t TSU_OutOfOrder::UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_OutOfOrder::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		size_t size = 0;
 		for (auto& it : UserWriteTRQueue[channel_id][chip_id])
 		{
 			if ((*it).Stream_id == gc_stream_id) ++size;
 		}
+		for (auto& it : UserReadTRQueue[channel_id][chip_id])
+		{
+			if ((*it).Stream_id == gc_stream_id) ++size;
+		}
 		return size;
+	}
+
+	size_t TSU_OutOfOrder::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	{
+		return UserReadTRQueue[channel_id][chip_id].size() + UserWriteTRQueue[channel_id][chip_id].size();
 	}
 
 	bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)

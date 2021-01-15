@@ -7,8 +7,7 @@
 //#include <python3.5m/Python.h>
 
 std::fstream gc_fs;
-std::fstream tsu_fs;
 
-//PyObject* gc_classifier;
+//PyObject* gc_classifier = NULL;
 
 #endif // !GLOBAL_H

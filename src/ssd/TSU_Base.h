@@ -14,10 +14,19 @@
 #include "../exec/Externer.h"
 #include <fstream>
 #include <iomanip>
+#include "TSU_SLUnit.h"
+#include <cmath>
+#include <vector>
+#include <algorithm>
 
 namespace SSD_Components
 {
-	enum class Flash_Scheduling_Type { OUT_OF_ORDER, FLIN, SPEED_LIMIT, SL_FIFO };
+	enum class Flash_Scheduling_Type { OUT_OF_ORDER, FLIN,
+		SIMPLE_FLIN, NP_FLIN,
+		SPEED_LIMIT,
+		SL_FIFO, SL_FLIN,
+		SLF_FIFO, SLF_FLIN
+	};
 	class FTL;
 	class TSU_Base : public MQSimEngine::Sim_Object
 	{
@@ -52,16 +61,32 @@ namespace SSD_Components
 		/* Shedules the transactions currently stored in inputTransactionSlots. The transactions could
 		* be mixes of reads, writes, and erases.
 		*/
-		virtual void Schedule() = 0;
+		void Schedule();
 		virtual void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 		double proportional_slowdown(stream_id_type gc_stream_id);
-		virtual size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
-		virtual size_t UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
+		virtual size_t GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
+		virtual size_t UserTRQueueSize(stream_id_type stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
+		virtual size_t UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id) = 0;
 		double fairness();
-		double proportional_slowdown(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		double proportional_slowdown(stream_id_type stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		double fairness(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		double percentage_of_conflict_gc(stream_id_type stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		sim_time_type Get_chip_level_shared_time(stream_id_type stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		sim_time_type Get_chip_level_alone_time(stream_id_type stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void stat_gc_erase(stream_id_type stream_id) { number_of_gc[stream_id]++; }
+		void start_execute_gc() { start_gc = true; }
+		NVM_PHY_ONFI_NVDDR2* Get__NVMController() { return _NVMController; }
+		double estimated_gap(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id, stream_id_type stream_id);
+		stream_id_type stream_with_maximum_slowdown(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		void proportional_slowdown_ordered_list(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id,
+			std::vector<double>& v);
+		unsigned int Get_max_psd_size() { return max_psd_size; }
 	protected:
+		struct Gap
+		{
+			sim_time_type last_arrival_time = 0;
+			double transaction_gap = 0;
+		};
 		FTL* ftl;
 		NVM_PHY_ONFI_NVDDR2* _NVMController;
 		Flash_Scheduling_Type type;
@@ -78,6 +103,7 @@ namespace SSD_Components
 		static TSU_Base* _my_instance;
 		std::list<NVM_Transaction_Flash*> transaction_receive_slots;//Stores the transactions that are received for sheduling
 		std::list<NVM_Transaction_Flash*> transaction_dispatch_slots;//Used to submit transactions to the channel controller
+		virtual void Schedule0() = 0;
 		virtual bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip) = 0;
 		virtual bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip) = 0;
 		virtual bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip) = 0;
@@ -91,15 +117,22 @@ namespace SSD_Components
 		int opened_scheduling_reqs;
 		unsigned int stream_count;
 		unsigned int* number_of_gc;
-		unsigned int read_conflict_gc, total_serviced_read;
-		unsigned int write_confict_gc, total_serviced_write;
+		unsigned int read_conflict_when_gc, total_serviced_read_when_gc;
+		unsigned int write_confict_when_gc, total_serviced_write_when_gc;
+		unsigned int*** chip_level_total_serviced_when_gc, *** chip_level_conflict_when_gc;
 		sim_time_type* alone_time, * shared_time;
 		sim_time_type*** chip_level_alone_time, *** chip_level_shared_time;
 		unsigned int* total_count;
+		bool start_gc;
+		
+		struct Gap*** gap;
+		float lambda = 2;
+		unsigned int max_psd_size = 5;
 
 		sim_time_type user_alone_time(sim_time_type waiting_time, Transaction_Type type);
 		sim_time_type gc_alone_time(sim_time_type waiting_time, Transaction_Type type);
 		sim_time_type mapping_alone_time(sim_time_type waiting_time, Transaction_Type type);
+		void update_usr_gap(NVM_Transaction_Flash* tr);
 	};
 }
 

@@ -23,14 +23,15 @@ namespace SSD_Components
 		~TSU_SpeedLimit();
 		void Prepare_for_transaction_submit();
 		void Submit_transaction(NVM_Transaction_Flash* transaction);
-		void Schedule();
+		void Schedule0();
 
 		void Start_simulation();
 		void Validate_simulation_config();
 		void Execute_simulator_event(MQSimEngine::Sim_Event* event);
 		void handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction);
-		size_t GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
-		size_t UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		size_t GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		size_t UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		size_t UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	private:
 		Flash_Transaction_Queue** UserReadTRQueue;

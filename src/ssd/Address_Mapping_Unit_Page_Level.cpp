@@ -366,6 +366,11 @@ namespace SSD_Components
 			round_robin_address[domainID].DieID = round_robin_mapping_address[domainID].DieID = 0;
 			round_robin_address[domainID].PlaneID = round_robin_mapping_address[domainID].PlaneID = 0;
 
+			global_round_robin_address.ChannelID = 0;
+			global_round_robin_address.ChipID = 0;
+			global_round_robin_address.DieID = 0;
+			global_round_robin_address.PlaneID = 0;
+
 			delete[] channel_ids;
 			delete[] chip_ids;
 			delete[] die_ids;
@@ -446,11 +451,25 @@ namespace SSD_Components
 	{
 		return domains[stream_id]->No_of_inserted_entries_in_preconditioning;
 	}
-/*
-功能：处理请求，将逻辑地址直接转化为物理地址
-*/
+
 	void Address_Mapping_Unit_Page_Level::Translate_lpa_to_ppa_and_dispatch(const std::list<NVM_Transaction*>& transactionList)
 	{
+		if (no_of_input_streams > 1)
+		{
+			switch (domains[transactionList.front()->Stream_id]->PlaneAllocationScheme)
+			{
+			case Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
+			case Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
+			case Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
+				dispatch_without_translated(transactionList);
+				return;
+			default:
+				break;
+			}
+		}
+		// locked for gc -> handle_transaction_serviced_signal_from_PHY() which only deals with mapping transaction
+		// query cmt -> submit_transaction() [address can be determined later]
+		// update read [address can be determined immediately]
 		for (std::list<NVM_Transaction*>::const_iterator it = transactionList.begin();
 			it != transactionList.end(); )
 		{
@@ -974,14 +993,17 @@ namespace SSD_Components
 			targetAddress.DieID = domain->Die_ids[(unsigned int)((lpn / domain->Plane_no) % domain->Die_no)];
 			targetAddress.PlaneID = domain->Plane_ids[(unsigned int)(lpn % domain->Plane_no)];
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
 			round_robin_allocation_bypass_gc(round_robin_address[stream_id], targetAddress, domain);
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
 		case Flash_Plane_Allocation_Scheme_Type::RRA:
 			round_robin_allocation(round_robin_address[stream_id], targetAddress, domain);
 			break;
-		case Flash_Plane_Allocation_Scheme_Type::RA:
-			reserved_allocation();
+		case Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
+		case Flash_Plane_Allocation_Scheme_Type::GRRA:
+			round_robin_allocation(global_round_robin_address, targetAddress, domain);
 			break;
 		default:
 			PRINT_ERROR("Unknown plane allocation scheme type!")
@@ -1142,14 +1164,17 @@ namespace SSD_Components
 			targetAddress.DieID = domain->Die_ids[(unsigned int)((lpn / domain->Plane_no) % domain->Die_no)];
 			targetAddress.PlaneID = domain->Plane_ids[(unsigned int)(lpn % domain->Plane_no)];
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
 			round_robin_allocation_bypass_gc(round_robin_address[transaction->Stream_id], transaction->Address, domain);
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
 		case Flash_Plane_Allocation_Scheme_Type::RRA:
 			round_robin_allocation(round_robin_address[transaction->Stream_id], transaction->Address, domain);
 			break;
-		case Flash_Plane_Allocation_Scheme_Type::RA:
-			reserved_allocation();
+		case Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
+		case Flash_Plane_Allocation_Scheme_Type::GRRA:
+			round_robin_allocation(global_round_robin_address, transaction->Address, domain);
 			break;
 		default:
 			PRINT_ERROR("Unknown plane allocation scheme type!")
@@ -1216,14 +1241,17 @@ namespace SSD_Components
 		Flash_Plane_Allocation_Scheme_Type type = domains[transaction->Stream_id]->PlaneAllocationScheme;
 		switch (type)
 		{
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
 			round_robin_allocation_bypass_gc(round_robin_mapping_address[transaction->Stream_id], transaction->Address, domains[transaction->Stream_id]);
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
 		case Flash_Plane_Allocation_Scheme_Type::RRA:
 			round_robin_allocation(round_robin_mapping_address[transaction->Stream_id], transaction->Address, domains[transaction->Stream_id]);
 			break;
-		case Flash_Plane_Allocation_Scheme_Type::RA:
-			reserved_allocation();
+		case Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
+		case Flash_Plane_Allocation_Scheme_Type::GRRA:
+			round_robin_allocation(global_round_robin_address, transaction->Address, domains[transaction->Stream_id]);
 			break;
 		default:
 			allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction);
@@ -1405,14 +1433,17 @@ namespace SSD_Components
 			read_address.DieID = domain->Die_ids[(unsigned int)((lpa / domain->Plane_no) % domain->Die_no)];
 			read_address.PlaneID = domain->Plane_ids[(unsigned int)(lpa % domain->Plane_no)];
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
 		case Flash_Plane_Allocation_Scheme_Type::RBGC:
 			round_robin_allocation_bypass_gc(round_robin_address[stream_id], read_address, domain);
 			break;
+		case Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
 		case Flash_Plane_Allocation_Scheme_Type::RRA:
 			round_robin_allocation(round_robin_address[stream_id], read_address, domain);
 			break;
-		case Flash_Plane_Allocation_Scheme_Type::RA:
-			reserved_allocation();
+		case Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
+		case Flash_Plane_Allocation_Scheme_Type::GRRA:
+			round_robin_allocation(global_round_robin_address, read_address, domain);
 			break;
 		default:
 			PRINT_ERROR("Unknown plane allocation scheme type!")
@@ -1802,6 +1833,7 @@ namespace SSD_Components
 	{
 		return domains[stream_id]->Locked_MVPNs.find(mvpn) != domains[stream_id]->Locked_MVPNs.end();
 	}
+
 	void Address_Mapping_Unit_Page_Level::round_robin_allocation(NVM::FlashMemory::Physical_Page_Address& rra,
 		NVM::FlashMemory::Physical_Page_Address& target_address, AddressMappingDomain* domain)
 	{
@@ -1823,7 +1855,6 @@ namespace SSD_Components
 			}
 		}
 	}
-
 	void Address_Mapping_Unit_Page_Level::round_robin_allocation_bypass_gc(NVM::FlashMemory::Physical_Page_Address& rra,
 		NVM::FlashMemory::Physical_Page_Address& target_address, AddressMappingDomain* domain)
 	{
@@ -1866,9 +1897,69 @@ namespace SSD_Components
 			}
 		}
 	}
-
-	void Address_Mapping_Unit_Page_Level::reserved_allocation()
+	void Address_Mapping_Unit_Page_Level::dispatch_without_translated(const std::list<NVM_Transaction*>& transactionList)
 	{
+		for (std::list<NVM_Transaction*>::const_iterator it = transactionList.begin();
+			it != transactionList.end(); )
+		{
+			if (is_lpa_locked_for_gc((*it)->Stream_id, ((NVM_Transaction_Flash*)(*it))->LPA))
+			{
+				manage_user_transaction_facing_barrier((NVM_Transaction_Flash*)*(it++));
+				continue;
+			}
+			PPA_type ppa = domains[(*it)->Stream_id]->Get_ppa(ideal_mapping_table, (*it)->Stream_id, ((NVM_Transaction_Flash*)(*it))->LPA);
+			if ((*it)->Type == Transaction_Type::READ) // read address can be determined immediately
+			{
+				if (ppa != NO_PPA)
+				{
+					((NVM_Transaction_Flash*)(*it))->PPA = ppa;
+					Convert_ppa_to_address(((NVM_Transaction_Flash*)(*it))->PPA, ((NVM_Transaction_Flash*)(*it))->Address);
+					block_manager->Read_transaction_issued(((NVM_Transaction_Flash*)(*it))->Address);
+					((NVM_Transaction_Flash*)(*it))->Physical_address_determined = true;
+				}
+			}
+			else if ((*it)->Type == Transaction_Type::WRITE) // deal with update read
+			{
+				NVM_Transaction_Flash_WR* transaction = (NVM_Transaction_Flash_WR*)(*it);
+				AddressMappingDomain* domain = domains[transaction->Stream_id];
+				page_status_type prev_page_status = domain->Get_page_status(ideal_mapping_table, transaction->Stream_id, transaction->LPA);
+				page_status_type status_intersection = transaction->write_sectors_bitmap & prev_page_status;
+				if (status_intersection != prev_page_status)
+				{
+					page_status_type read_pages_bitmap = status_intersection ^ prev_page_status;
+					NVM_Transaction_Flash_RD* update_read_tr = new NVM_Transaction_Flash_RD(transaction->Source, transaction->Stream_id,
+						count_sector_no_from_status_bitmap(read_pages_bitmap) * SECTOR_SIZE_IN_BYTE, transaction->LPA, ppa,
+						transaction->UserIORequest, transaction->Content, transaction, read_pages_bitmap,
+						domain->GlobalMappingTable[transaction->LPA].TimeStamp);
+					Convert_ppa_to_address(ppa, update_read_tr->Address);
+					block_manager->Read_transaction_issued(update_read_tr->Address);
+					block_manager->Invalidate_page_in_block(transaction->Stream_id, update_read_tr->Address);
+					transaction->RelatedRead = update_read_tr;
+					update_read_tr->Physical_address_determined = true;
+				}
+			}
+			++it;
+		}
+		if (transactionList.size() > 0)
+		{
+			ftl->TSU->Prepare_for_transaction_submit();
+			for (std::list<NVM_Transaction*>::const_iterator it = transactionList.begin(); it != transactionList.end(); ++it)
+			{
+				ftl->TSU->Submit_transaction(static_cast<NVM_Transaction_Flash*>(*it));
+				if (((NVM_Transaction_Flash*)(*it))->Type == Transaction_Type::WRITE)
+				{
+					if (((NVM_Transaction_Flash_WR*)(*it))->RelatedRead != NULL)
+					{
+						ftl->TSU->Submit_transaction(((NVM_Transaction_Flash_WR*)(*it))->RelatedRead);
+					}
+				}
+			}
+			ftl->TSU->Schedule();
+		}
+	}
+	void Address_Mapping_Unit_Page_Level::translate_after_dispatched(NVM_Transaction_Flash* transaction)
+	{
+		query_cmt(transaction);
 	}
 
 	inline void Address_Mapping_Unit_Page_Level::Set_barrier_for_accessing_lpa(stream_id_type stream_id, LPA_type lpa)

@@ -22,8 +22,8 @@ namespace SSD_Components
 		no_of_priority_classes(no_of_priority_classes), F_thr(f_thr), GC_flin(GC_FLIN)
 	{
 		alpha_read_for_epoch = alpha_read / (channel_count * chip_no_per_channel) / flash_page_size;
-		alpha_write_for_epoch = alpha_write / (channel_count * chip_no_per_channel) / flash_page_size,
-			this->stream_count_per_priority_class = new unsigned int[no_of_priority_classes];
+		alpha_write_for_epoch = alpha_write / (channel_count * chip_no_per_channel) / flash_page_size;
+		this->stream_count_per_priority_class = new unsigned int[no_of_priority_classes];
 		this->stream_ids_per_priority_class = new stream_id_type * [no_of_priority_classes];
 		for (unsigned int i = 0; i < no_of_priority_classes; i++)
 		{
@@ -203,23 +203,29 @@ namespace SSD_Components
 		Simulator->Register_sim_event(Simulator->Time() + flow_classification_epoch, this, 0, 0);
 	}
 
-	size_t TSU_FLIN::GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_FLIN::GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		return GCReadTRQueue[channel_id][chip_id].size() + GCWriteTRQueue[channel_id][chip_id].size() + GCEraseTRQueue[channel_id][chip_id].size();
 	}
 
-	size_t TSU_FLIN::UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_FLIN::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		size_t cnt = 0;
-		for (auto tr : UserWriteTRQueue[channel_id][chip_id][(int)IO_Flow_Priority_Class::HIGH])
+		for (auto tr : UserWriteTRQueue[channel_id][chip_id][(int)IO_Flow_Priority_Class::HIGH - 1])
 		{
 			if (tr->Stream_id == gc_stream_id) ++cnt;
 		}
-		for (auto tr : UserReadTRQueue[channel_id][chip_id][(int)IO_Flow_Priority_Class::HIGH])
+		for (auto tr : UserReadTRQueue[channel_id][chip_id][(int)IO_Flow_Priority_Class::HIGH - 1])
 		{
 			if (tr->Stream_id == gc_stream_id) ++cnt;
 		}
 		return cnt;
+	}
+
+	size_t TSU_FLIN::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	{
+		return UserReadTRQueue[channel_id][chip_id][(int)IO_Flow_Priority_Class::HIGH - 1].size()
+			+ UserWriteTRQueue[channel_id][chip_id][(int)IO_Flow_Priority_Class::HIGH - 1].size();
 	}
 
 	inline void TSU_FLIN::Prepare_for_transaction_submit()
@@ -235,7 +241,7 @@ namespace SSD_Components
 		transaction_receive_slots.push_back(transaction);
 	}
 
-	void TSU_FLIN::Schedule()
+	void TSU_FLIN::Schedule0()
 	{
 		opened_scheduling_reqs--;
 		if (opened_scheduling_reqs > 0)
@@ -262,7 +268,7 @@ namespace SSD_Components
 				}
 			}
 			stream_id_type stream_id = (*it)->Stream_id;
-			(*it)->is_conflicting_gc = _NVMController->Is_chip_busy_with_gc((*it)->Address.ChannelID, (*it)->Address.ChipID);
+			_NVMController->test_transaction_for_conflicting_with_gc(*it);
 			switch ((*it)->Type)
 			{
 			case Transaction_Type::READ:
@@ -437,7 +443,7 @@ namespace SSD_Components
 
 		//First pass: from start to end to estimate the slowdown of each transaction in its current position
 		std::stack<double> min_slowdown_list, max_slowdown_list;
-		double slowdown_min = DBL_MAX, slowdown_max = 0;
+		double slowdown_min = DBL_MAX, slowdown_max = DBL_MIN;
 		while (itr != std::next(end))
 		{
 			time_to_finish += _NVMController->Expected_transfer_time(*itr) + _NVMController->Expected_command_time(*itr);
@@ -464,7 +470,7 @@ namespace SSD_Components
 		double fairness_max = slowdown_min / slowdown_max;
 
 		// add
-		double slowdown_min_workload = DBL_MAX, slowdown_max_workload = 0;
+		double slowdown_min_workload = DBL_MAX, slowdown_max_workload = DBL_MIN;
 		for (const auto& a : slowdown_info_per_workload)
 		{
 			double slowdown = a.second.first / a.second.second;
@@ -524,7 +530,7 @@ namespace SSD_Components
 
 			double fairness_after = (double)slowdown_min / slowdown_max;
 			// add
-			double slowdown_min_workload = DBL_MAX, slowdown_max_workload = 0;
+			double slowdown_min_workload = DBL_MAX, slowdown_max_workload = DBL_MIN;
 			for (const auto& a : slowdown_info_per_workload)
 			{
 				double slowdown = a.second.first / a.second.second;
@@ -615,7 +621,7 @@ namespace SSD_Components
 			++itr;
 		}
 
-		double slowdown_max = 0, slowdown_min = DBL_MAX;
+		double slowdown_max = DBL_MIN, slowdown_min = DBL_MAX;
 		int stream_count = 0;
 		for (unsigned int i = 0; i < priority_stream_count; i++)
 		{
@@ -1048,7 +1054,7 @@ namespace SSD_Components
 				{ Transaction_Type::READ, Transaction_Source_Type::USERIO }
 			);
 		}
-		// the number of valid pages for flow f in SSD cannot be calculated in MQSim
+		// the number of valid pages for flow f in SSD is hard to calculate in MQSim
 		unsigned int GCM = 0;
 		NVM_Transaction_Flash_RD* read_slot = get_read_slot(chip->ChannelID, chip->ChipID);
 		NVM_Transaction_Flash_WR* write_slot = get_write_slot(chip->ChannelID, chip->ChipID);
@@ -1111,6 +1117,24 @@ namespace SSD_Components
 					{ Transaction_Type::ERASE, Transaction_Source_Type::GC_WL });
 			}
 		}
+		else
+		{
+			if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size())
+			{
+				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
+					{ Transaction_Type::READ, Transaction_Source_Type::GC_WL });
+			}
+			else if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size())
+			{
+				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
+					{ Transaction_Type::WRITE, Transaction_Source_Type::GC_WL });
+			}
+			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size())
+			{
+				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
+					{ Transaction_Type::ERASE, Transaction_Source_Type::GC_WL });
+			}
+		}
 		bool success = false;
 		while (!transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].empty() && !success)
 		{
@@ -1128,17 +1152,12 @@ namespace SSD_Components
 			default:
 				break;
 			}
-			if (transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].front().first == Transaction_Type::ERASE)
-				service_erase_transaction(chip);
 			transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].pop_front();
 		}
-		//if (Simulator->Time() >= 1.07e13)
-		//{
-		//	/*if (!service_read_transaction(chip))
-		//		if (!service_write_transaction(chip))
-		//			service_erase_transaction(chip);*/
-		//	Simulator->Stop_simulation();
-		//}
+		/*if (Simulator->Time() >= 1.43e13)
+		{
+			Simulator->Stop_simulation();
+		}*/
 	}
 
 	bool TSU_FLIN::service_read_transaction0(NVM::FlashMemory::Flash_Chip* chip)
@@ -1150,34 +1169,34 @@ namespace SSD_Components
 			sourceQueue1 = &MappingReadTRQueue[chip->ChannelID][chip->ChipID];
 			if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip) && GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				sourceQueue2 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
-			else if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
-				sourceQueue2 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+			else if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
+				sourceQueue2 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 		}
 		else if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip))//If flash transactions related to GC are prioritzed (non-preemptive execution mode of GC), then GC queues are checked first
 		{
 			if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 			{
 				sourceQueue1 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
-				if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
-					sourceQueue2 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+				if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
+					sourceQueue2 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 			}
 			else if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				return false;
 			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				return false;
-			else if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
-				sourceQueue1 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+			else if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
+				sourceQueue1 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 			else return false;
 		}
 		else //If GC is currently executed in the preemptive mode, then user IO transaction queues are checked first
 		{
-			if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
+			if (UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
 			{
-				sourceQueue1 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+				sourceQueue1 = &UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 				if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 					sourceQueue2 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
 			}
-			else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
+			else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
 				return false;
 			else if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				sourceQueue1 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
@@ -1209,7 +1228,7 @@ namespace SSD_Components
 		flash_die_ID_type die_id = sourceQueue1->front()->Address.DieID;
 		flash_page_ID_type page_id = sourceQueue1->front()->Address.PageID;
 		unsigned int plane_vector = 0;
-		bool is_continued = is_dominated_by_one_stream(&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+		bool is_continued = is_dominated_by_one_stream(&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 		for (unsigned int i = 0; i < die_no_per_chip; i++)
 		{
 			transaction_dispatch_slots.clear();
@@ -1228,9 +1247,9 @@ namespace SSD_Components
 						if ((*it)->Source == Transaction_Source_Type::CACHE
 							|| (*it)->Source == Transaction_Source_Type::USERIO)
 						{
-							if (it == head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH])
+							if (it == head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1])
 							{
-								++head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+								++head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 							}
 						}
 						stream_id_type dispatched_stream_id = (*it)->Stream_id;
@@ -1246,10 +1265,10 @@ namespace SSD_Components
 							|| source == Transaction_Source_Type::GC_WL)
 						{
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 						}
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-							&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 						if (is_continued) continue;
 						else break;
 					}
@@ -1271,9 +1290,9 @@ namespace SSD_Components
 							if ((*it)->Source == Transaction_Source_Type::CACHE
 								|| (*it)->Source == Transaction_Source_Type::USERIO)
 							{
-								if (it == head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH])
+								if (it == head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1])
 								{
-									++head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+									++head_high_read[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 								}
 							}
 							stream_id_type dispatched_stream_id = (*it)->Stream_id;
@@ -1289,10 +1308,10 @@ namespace SSD_Components
 								|| source == Transaction_Source_Type::GC_WL)
 							{
 								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-									&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+									&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 							continue;
 						}
 					}
@@ -1317,20 +1336,20 @@ namespace SSD_Components
 			if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 			{
 				sourceQueue1 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
-				if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
-					sourceQueue2 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+				if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
+					sourceQueue2 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 			}
 			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				return false;
-			else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
-				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+			else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
+				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 			else return false;
 		}
 		else //If GC is currently executed in the preemptive mode, then user IO transaction queues are checked first
 		{
-			if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH].size() > 0)
+			if (UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1].size() > 0)
 			{
-				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 				if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 					sourceQueue2 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
 			}
@@ -1359,7 +1378,7 @@ namespace SSD_Components
 		flash_die_ID_type die_id = sourceQueue1->front()->Address.DieID;
 		flash_page_ID_type page_id = sourceQueue1->front()->Address.PageID;
 		unsigned int plane_vector = 0;
-		bool is_continued = is_dominated_by_one_stream(&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+		bool is_continued = is_dominated_by_one_stream(&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 		for (unsigned int i = 0; i < die_no_per_chip; i++)
 		{
 			transaction_dispatch_slots.clear();
@@ -1379,10 +1398,10 @@ namespace SSD_Components
 						if ((*it)->Source == Transaction_Source_Type::CACHE
 							|| (*it)->Source == Transaction_Source_Type::USERIO)
 						{
-							flow_activity_info[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH][(*it)->Stream_id].No_of_serviced_writes_since_last_GC++;
-							if (it == head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH])
+							flow_activity_info[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1][(*it)->Stream_id].No_of_serviced_writes_since_last_GC++;
+							if (it == head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1])
 							{
-								++head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+								++head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 							}
 						}
 						stream_id_type dispatched_stream_id = (*it)->Stream_id;
@@ -1398,10 +1417,10 @@ namespace SSD_Components
 							|| source == Transaction_Source_Type::GC_WL)
 						{
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+								&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 						}
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-							&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 						if (is_continued) continue;
 						else break;
 					}
@@ -1423,10 +1442,10 @@ namespace SSD_Components
 							if ((*it)->Source == Transaction_Source_Type::CACHE
 								|| (*it)->Source == Transaction_Source_Type::USERIO)
 							{
-								flow_activity_info[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH][(*it)->Stream_id].No_of_serviced_writes_since_last_GC++;
-								if (it == head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH])
+								flow_activity_info[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1][(*it)->Stream_id].No_of_serviced_writes_since_last_GC++;
+								if (it == head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1])
 								{
-									++head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH];
+									++head_high_write[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1];
 								}
 							}
 							stream_id_type dispatched_stream_id = (*it)->Stream_id;
@@ -1442,10 +1461,10 @@ namespace SSD_Components
 								|| source == Transaction_Source_Type::GC_WL)
 							{
 								adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-									&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+									&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
-								&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+								&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 							continue;
 						}
 					}
@@ -1495,9 +1514,9 @@ namespace SSD_Components
 						transaction_dispatch_slots.push_back(*it);
 						source_queue->remove(it++);
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
-							&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+							&UserReadTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 						adjust_alone_time(dispatched_stream_id, adjust_time, type, Transaction_Source_Type::GC_WL,
-							&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH]);
+							&UserWriteTRQueue[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1]);
 						continue;
 					}
 				}
@@ -1508,10 +1527,10 @@ namespace SSD_Components
 			transaction_dispatch_slots.clear();
 			die_id = (die_id + 1) % die_no_per_chip;
 		}
-		for (unsigned int i = 0; i < stream_count_per_priority_class[(int)IO_Flow_Priority_Class::HIGH]; ++i)
+		for (unsigned int i = 0; i < stream_count_per_priority_class[(int)IO_Flow_Priority_Class::HIGH - 1]; ++i)
 		{
-			stream_id_type stream_id = stream_ids_per_priority_class[(int)IO_Flow_Priority_Class::HIGH][i];
-			flow_activity_info[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH][stream_id].No_of_serviced_writes_since_last_GC = 0;
+			stream_id_type stream_id = stream_ids_per_priority_class[(int)IO_Flow_Priority_Class::HIGH - 1][i];
+			flow_activity_info[chip->ChannelID][chip->ChipID][(int)IO_Flow_Priority_Class::HIGH - 1][stream_id].No_of_serviced_writes_since_last_GC = 0;
 		}
 		return true;
 	}
@@ -1681,11 +1700,11 @@ namespace SSD_Components
 
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 			for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
-				UserReadTRQueue[channelID][chip_cntr][(int)IO_Flow_Priority_Class::HIGH].Report_results_in_XML(name_prefix + ".User_Read_TR_Queue", xmlwriter);
+				UserReadTRQueue[channelID][chip_cntr][(int)IO_Flow_Priority_Class::HIGH - 1].Report_results_in_XML(name_prefix + ".User_Read_TR_Queue", xmlwriter);
 
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 			for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
-				UserWriteTRQueue[channelID][chip_cntr][(int)IO_Flow_Priority_Class::HIGH].Report_results_in_XML(name_prefix + ".User_Write_TR_Queue", xmlwriter);
+				UserWriteTRQueue[channelID][chip_cntr][(int)IO_Flow_Priority_Class::HIGH - 1].Report_results_in_XML(name_prefix + ".User_Write_TR_Queue", xmlwriter);
 
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 			for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)

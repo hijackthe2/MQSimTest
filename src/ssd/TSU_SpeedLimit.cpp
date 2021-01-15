@@ -216,13 +216,13 @@ namespace SSD_Components
 		transaction_receive_slots.push_back(transaction);
 	}
 
-	size_t TSU_SpeedLimit::GCEraseTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_SpeedLimit::GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		return GCEraseTRQueue[channel_id][chip_id].size() + GCReadTRQueue[channel_id][chip_id].size()
 			+ GCWriteTRQueue[channel_id][chip_id].size();
 	}
 
-	size_t TSU_SpeedLimit::UserWriteTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_SpeedLimit::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		size_t cnt = UserReadTRBuffer[gc_stream_id].size() + UserWriteTRBuffer[gc_stream_id].size();
 		for (auto& it_tr : UserReadTRQueue[channel_id][chip_id])
@@ -236,7 +236,24 @@ namespace SSD_Components
 		return cnt;
 	}
 
-	void TSU_SpeedLimit::Schedule()
+	size_t TSU_SpeedLimit::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	{
+		size_t size = UserReadTRQueue[channel_id][chip_id].size() + UserWriteTRQueue[channel_id][chip_id].size();
+		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+		{
+			for (auto& it : UserReadTRBuffer[stream_id])
+			{
+				if (it->Address.ChannelID == channel_id && it->Address.ChipID == chip_id) size++;
+			}
+			for (auto& it : UserWriteTRBuffer[stream_id])
+			{
+				if (it->Address.ChannelID == channel_id && it->Address.ChipID == chip_id) size++;
+			}
+		}
+		return size;
+	}
+
+	void TSU_SpeedLimit::Schedule0()
 	{
 		opened_scheduling_reqs--;
 		if (opened_scheduling_reqs > 0)
@@ -252,7 +269,7 @@ namespace SSD_Components
 		{
 			flash_channel_ID_type channel_id = (*it)->Address.ChannelID;
 			flash_chip_ID_type chip_id = (*it)->Address.ChipID;
-			(*it)->is_conflicting_gc = _NVMController->Is_chip_busy_with_gc(channel_id, chip_id);
+			_NVMController->test_transaction_for_conflicting_with_gc(*it);
 			switch ((*it)->Type)
 			{
 			case Transaction_Type::READ:
@@ -728,6 +745,8 @@ namespace SSD_Components
 
 	void TSU_SpeedLimit::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
+		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
+			return;
 		if (stream_count > 1)
 		{
 			speed_limit(UserReadTRQueue, UserReadTRBuffer, UserReadTRCount, user_read_limit_speed, user_read_idx);
@@ -750,7 +769,7 @@ namespace SSD_Components
 				{ Transaction_Type::WRITE, Transaction_Source_Type::USERIO }
 			);
 		}*/
-		// the number of valid pages for flow f in SSD cannot be calculated in MQSim
+		// the number of valid pages for flow f in SSD is hard to calculate in MQSim
 		unsigned int GCM = 0;
 		NVM_Transaction_Flash_RD* read_slot = get_read_slot(chip->ChannelID, chip->ChipID);
 		NVM_Transaction_Flash_WR* write_slot = get_write_slot(chip->ChannelID, chip->ChipID);
@@ -780,19 +799,11 @@ namespace SSD_Components
 		else if (pw_write >= 0 && pw_write > pw_read)
 		{
 
-			if (GCEraseTRQueueSize(chip->ChannelID, chip->ChipID) > 0)
-			{
-				if (!service_read_transaction0(chip))
-					if (!service_write_transaction0(chip))
-						service_erase_transaction0(chip);
-				service_write_transaction0(chip);
-				return;
-			}
-
 			bool execute_gc = false;
-			//if (ftl->BlockManager->Get_plane_bookkeeping_entry(write_slot->Address)->Free_pages_count < /*524288*//*GC_FLIN*/)
+			//if (ftl->BlockManager->Get_plane_bookkeeping_entry(write_slot->Address)->Free_pages_count < GC_FLIN)
+			if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip))
 			{
-				GCM = (int)GCReadTRQueue[chip->ChannelID][chip->ChipID].size();
+				//GCM = (int)GCEraseTRQueueSize(chip->ChannelID, chip->ChipID);
 				while (GCM > 0)
 				{
 					execute_gc = true;
@@ -806,6 +817,24 @@ namespace SSD_Components
 			transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
 				{ Transaction_Type::WRITE, Transaction_Source_Type::USERIO });
 			if (execute_gc)
+			{
+				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
+					{ Transaction_Type::ERASE, Transaction_Source_Type::GC_WL });
+			}
+		}
+		else
+		{
+			if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size())
+			{
+				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
+					{ Transaction_Type::READ, Transaction_Source_Type::GC_WL });
+			}
+			else if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size())
+			{
+				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
+					{ Transaction_Type::WRITE, Transaction_Source_Type::GC_WL });
+			}
+			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size())
 			{
 				transaction_waiting_dispatch_slots[chip->ChannelID][chip->ChipID].push_back(
 					{ Transaction_Type::ERASE, Transaction_Source_Type::GC_WL });
@@ -1229,7 +1258,12 @@ namespace SSD_Components
 		NVM_Transaction_Flash* slot = NULL;
 		if (MappingWriteTRQueue[channel_id][chip_id].empty())
 		{
-			slot = UserWriteTRQueue[channel_id][chip_id].empty() ? NULL : UserWriteTRQueue[channel_id][chip_id].front();
+			if (UserWriteTRQueue[channel_id][chip_id].size())
+			{
+				slot = UserWriteTRQueue[channel_id][chip_id].front();
+				if (((NVM_Transaction_Flash_WR*)slot)->RelatedRead != NULL)
+					slot = NULL;
+			}
 		}
 		/*else
 		{

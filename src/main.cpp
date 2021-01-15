@@ -11,6 +11,7 @@
 #include "utils/DistributionTypes.h"
 #include "exec/Global.h"
 #include "exec/Externer.h"
+// windows
 #include <io.h>
 #include <direct.h>
 // linux
@@ -305,13 +306,14 @@ int main(int argc, char* argv[])
 	read_configuration_parameters(ssd_config_file_path, exec_params);
 	std::vector<std::vector<IO_Flow_Parameter_Set*>*>* io_scenarios = read_workload_definitions(workload_defs_file_path);
 
+	// window
 	if (_access("out", 0) == -1 && _mkdir("out") == -1)
 	{
 		std::cout << "cannot create dir /out, which contains recorded statistics\n";
 	}
 
 	//linux
-	/*if (access("out", F_OK) == -1 && mkdir("out", 0777) == -1)
+	/*if (access("out", F_OK) == -1 && mkdir("out", S_IRUSR | S_IWUSR | S_IXUSR | S_IRWXG | S_IRWXO) == -1)
 	{
 		std::cout << "cannot create dir /out, which contains recorded statistics\n";
 	}*/
@@ -321,11 +323,19 @@ int main(int argc, char* argv[])
 	PyImport_ImportModule("model");
 	testing();*/
 
+	// load
+	string mdl, path;
+	//mdl = "rfc", path = "src/ml_module/rfc.joblib"; // Random Forest Classifier
+	//mdl = "lsvc", path = "src/ml_module/lsvc.joblib"; // Linear SVC
+	//mdl = "lr", path = "src/ml_module/lr.joblib"; // Logistic Regression
+	//mdl = "ilsvc", path = "src/ml_module/ilsvc.joblib"; // Incremental Linear SVC
+	//mdl = "ilr", path = "src/ml_module/ilr.joblib"; // Incremental Logistic Regression
+	//gc_classifier = load(mdl.c_str(), path.c_str()); 
+	//gc_classifier = load_knc(21, 130, 46); // KNeighborsClassifier
+
 	int cntr = 1;
 	for (auto io_scen = io_scenarios->begin(); io_scen != io_scenarios->end(); io_scen++, cntr++)
 	{
-		//gc_classifier = init_rfc("");
-		//gc_classifier = knc_init(10, 50, 5);
 		time_t start_time = time(0);
 		char* dt = ctime(&start_time);
 		PRINT_MESSAGE("MQSim started at " << dt)
@@ -355,10 +365,10 @@ int main(int argc, char* argv[])
 
 		PRINT_MESSAGE("Writing results to output file .......");
 		collect_results(ssd, host, (workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml").c_str());
-		//delete_instance(gc_classifier);
+		//if (gc_classifier != NULL) timing_information(gc_classifier);
 	}
 	gc_fs.close();
-	tsu_fs.close();
+	//if (gc_classifier != NULL) delete_classifier(gc_classifier);
 	//Py_Finalize();
 	return 0;
 }

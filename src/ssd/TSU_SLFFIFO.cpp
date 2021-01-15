@@ -1,15 +1,15 @@
-#include "TSU_SLFIFO.h"
+#include "TSU_SLFFIFO.h"
 
 namespace SSD_Components
 {
 
-	TSU_SLFIFO::TSU_SLFIFO(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController, unsigned int ChannelCount, unsigned int chip_no_per_channel,
+	TSU_SLFFIFO::TSU_SLFFIFO(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController, unsigned int ChannelCount, unsigned int chip_no_per_channel,
 		unsigned int DieNoPerChip, unsigned int PlaneNoPerDie, unsigned int StreamCount,
 		sim_time_type WriteReasonableSuspensionTimeForRead,
 		sim_time_type EraseReasonableSuspensionTimeForRead,
 		sim_time_type EraseReasonableSuspensionTimeForWrite,
 		bool EraseSuspensionEnabled, bool ProgramSuspensionEnabled)
-		: TSU_Base(id, ftl, NVMController, Flash_Scheduling_Type::SL_FIFO, ChannelCount, chip_no_per_channel, DieNoPerChip, PlaneNoPerDie,
+		: TSU_Base(id, ftl, NVMController, Flash_Scheduling_Type::SLF_FIFO, ChannelCount, chip_no_per_channel, DieNoPerChip, PlaneNoPerDie,
 			StreamCount, WriteReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForRead, EraseReasonableSuspensionTimeForWrite,
 			EraseSuspensionEnabled, ProgramSuspensionEnabled)
 	{
@@ -47,7 +47,7 @@ namespace SSD_Components
 		write_unit = new TSU_SLUnit(channel_count * chip_no_per_channel * 2, stream_count);
 	}
 
-	TSU_SLFIFO::~TSU_SLFIFO()
+	TSU_SLFFIFO::~TSU_SLFFIFO()
 	{
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 		{
@@ -72,13 +72,13 @@ namespace SSD_Components
 		delete write_unit;
 	}
 
-	void TSU_SLFIFO::Start_simulation() {}
+	void TSU_SLFFIFO::Start_simulation() {}
 
-	void TSU_SLFIFO::Validate_simulation_config() {}
+	void TSU_SLFFIFO::Validate_simulation_config() {}
 
-	void TSU_SLFIFO::Execute_simulator_event(MQSimEngine::Sim_Event* event) {}
+	void TSU_SLFFIFO::Execute_simulator_event(MQSimEngine::Sim_Event* event) {}
 
-	void TSU_SLFIFO::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)
+	void TSU_SLFFIFO::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)
 	{
 		name_prefix = name_prefix + +".TSU";
 		xmlwriter.Write_open_tag(name_prefix);
@@ -116,7 +116,7 @@ namespace SSD_Components
 		xmlwriter.Write_close_tag();
 	}
 
-	inline void TSU_SLFIFO::Prepare_for_transaction_submit()
+	inline void TSU_SLFFIFO::Prepare_for_transaction_submit()
 	{
 		opened_scheduling_reqs++;
 		if (opened_scheduling_reqs > 1)
@@ -124,25 +124,25 @@ namespace SSD_Components
 		transaction_receive_slots.clear();
 	}
 
-	inline void TSU_SLFIFO::Submit_transaction(NVM_Transaction_Flash* transaction)
+	void TSU_SLFFIFO::Submit_transaction(NVM_Transaction_Flash* transaction)
 	{
 		transaction_receive_slots.push_back(transaction);
 	}
 
-	void TSU_SLFIFO::handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction)
+	void TSU_SLFFIFO::handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction)
 	{
 		if (transaction->Source != Transaction_Source_Type::CACHE && transaction->Source != Transaction_Source_Type::USERIO && stream_count == 1) return;
 		if (transaction->Type == Transaction_Type::READ) read_unit->feedback(transaction->Stream_id);
 		else if (transaction->Type == Transaction_Type::WRITE) write_unit->feedback(transaction->Stream_id);
 	}
 
-	void TSU_SLFIFO::Schedule0()
+	void TSU_SLFFIFO::Schedule0()
 	{
 		opened_scheduling_reqs--;
 		if (opened_scheduling_reqs > 0)
 			return;
 		if (opened_scheduling_reqs < 0)
-			PRINT_ERROR("TSU_SLFIFO: Illegal status!");
+			PRINT_ERROR("TSU_SLFFIFO: Illegal status!");
 
 		if (transaction_receive_slots.size() == 0)
 			return;
@@ -151,63 +151,74 @@ namespace SSD_Components
 			it != transaction_receive_slots.end(); it++)
 		{
 			_NVMController->test_transaction_for_conflicting_with_gc(*it);
-			switch ((*it)->Type)
+			if ((*it)->Physical_address_determined)
 			{
-			case Transaction_Type::READ:
-				switch ((*it)->Source)
+				flash_channel_ID_type channel_id = (*it)->Address.ChannelID;
+				flash_chip_ID_type chip_id = (*it)->Address.ChipID;
+				switch ((*it)->Type)
 				{
-				case Transaction_Source_Type::CACHE:
-				case Transaction_Source_Type::USERIO:
-					estimate_alone_time(*it, &UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID], read_unit->get_buffer((*it)->Stream_id));
-					if (stream_count == 1)
+				case Transaction_Type::READ:
+					switch ((*it)->Source)
 					{
-						UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
-					}
-					else
-					{
-						read_unit->buffering(*it);
+					case Transaction_Source_Type::CACHE:
+					case Transaction_Source_Type::USERIO:
+						estimate_alone_time(*it, &UserReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID], read_unit->get_buffer((*it)->Stream_id));
+						if (stream_count == 1)
+							UserReadTRQueue[channel_id][chip_id].push_back((*it));
+						else
+							read_unit->buffering((*it));
+						break;
+					case Transaction_Source_Type::MAPPING:
+						MappingReadTRQueue[channel_id][chip_id].push_back((*it));
+						break;
+					case Transaction_Source_Type::GC_WL:
+						GCReadTRQueue[channel_id][chip_id].push_back((*it));
+						break;
 					}
 					break;
-				case Transaction_Source_Type::MAPPING:
-					MappingReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
+				case Transaction_Type::WRITE:
+					switch ((*it)->Source)
+					{
+					case Transaction_Source_Type::CACHE:
+					case Transaction_Source_Type::USERIO:
+						estimate_alone_time(*it, &UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID], write_unit->get_buffer((*it)->Stream_id));
+						if (stream_count == 1)
+							UserWriteTRQueue[channel_id][chip_id].push_back((*it));
+						else
+							write_unit->buffering((*it));
+						break;
+					case Transaction_Source_Type::MAPPING:
+						MappingWriteTRQueue[channel_id][chip_id].push_back((*it));
+						break;
+					case Transaction_Source_Type::GC_WL:
+						GCWriteTRQueue[channel_id][chip_id].push_back((*it));
+						break;
+					}
 					break;
-				case Transaction_Source_Type::GC_WL:
-					GCReadTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
+				case Transaction_Type::ERASE:
+					GCEraseTRQueue[channel_id][chip_id].push_back((*it));
 					break;
 				default:
-					PRINT_ERROR("TSU_SLFIFO: unknown source type for a read transaction!")
+					break;
 				}
-				break;
-			case Transaction_Type::WRITE:
-				switch ((*it)->Source)
+			}
+			else
+			{
+				if (((*it)->Source != Transaction_Source_Type::CACHE && (*it)->Source != Transaction_Source_Type::USERIO) || stream_count == 1)
 				{
-				case Transaction_Source_Type::CACHE:
-				case Transaction_Source_Type::USERIO:
+					std::cout << "wrong in slf tsu  stream count " << stream_count << "  address " << (int)(*it)->Physical_address_determined
+						<< "  type " << (int)(*it)->Type << "  source " << (int)(*it)->Source << "\n";
+				}
+				else if ((*it)->Type == Transaction_Type::READ)
+				{
+					estimate_alone_time(*it, &UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID], read_unit->get_buffer((*it)->Stream_id));
+					read_unit->buffering((*it));
+				}
+				else if ((*it)->Type == Transaction_Type::WRITE)
+				{
 					estimate_alone_time(*it, &UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID], write_unit->get_buffer((*it)->Stream_id));
-					if (stream_count == 1)
-					{
-						UserWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
-					}
-					else
-					{
-						write_unit->buffering(*it);
-					}
-					break;
-				case Transaction_Source_Type::MAPPING:
-					MappingWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
-					break;
-				case Transaction_Source_Type::GC_WL:
-					GCWriteTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
-					break;
-				default:
-					PRINT_ERROR("TSU_SLFIFO: unknown source type for a write transaction!")
+					write_unit->buffering((*it));
 				}
-				break;
-			case Transaction_Type::ERASE:
-				GCEraseTRQueue[(*it)->Address.ChannelID][(*it)->Address.ChipID].push_back((*it));
-				break;
-			default:
-				break;
 			}
 		}
 
@@ -228,7 +239,7 @@ namespace SSD_Components
 		}
 	}
 
-	void TSU_SLFIFO::estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer)
+	void TSU_SLFFIFO::estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer)
 	{
 		sim_time_type chip_busy_time = 0, waiting_last_time = 0;
 		NVM_Transaction_Flash* chip_tr = _NVMController->Is_chip_busy_with_stream(transaction);
@@ -252,7 +263,7 @@ namespace SSD_Components
 			+ _NVMController->Expected_transfer_time(transaction) + _NVMController->Expected_command_time(transaction);
 	}
 
-	void TSU_SLFIFO::adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
+	void TSU_SLFFIFO::adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
 		Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer,
 		flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
@@ -275,21 +286,19 @@ namespace SSD_Components
 				(*it)->alone_time += adjust_time;
 			}
 		}
+		adjust_time /= channel_count * chip_no_per_channel;
 		for (auto it = buffer->begin(); it != buffer->end(); ++it)
 		{
-			if ((*it)->Address.ChannelID == channel_id && (*it)->Address.ChipID == chip_id)
-			{
-				(*it)->alone_time += adjust_time;
-			}
+			(*it)->alone_time += adjust_time;
 		}
 	}
 
-	size_t TSU_SLFIFO::GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_SLFFIFO::GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		return GCReadTRQueue[channel_id][chip_id].size() + GCWriteTRQueue[channel_id][chip_id].size() + GCEraseTRQueue[channel_id][chip_id].size();
 	}
 
-	size_t TSU_SLFIFO::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_SLFFIFO::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
 		size_t size = read_unit->get_buffer(gc_stream_id)->size() + write_unit->get_buffer(gc_stream_id)->size();
 		for (auto& it : UserWriteTRQueue[channel_id][chip_id])
@@ -303,24 +312,19 @@ namespace SSD_Components
 		return size;
 	}
 
-	size_t TSU_SLFIFO::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	size_t TSU_SLFFIFO::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
-		size_t size = UserReadTRQueue[channel_id][chip_id].size() + UserWriteTRQueue[channel_id][chip_id].size();
+		size_t size = 0;
 		for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
 		{
-			for (auto& it : *read_unit->get_buffer(stream_id))
-			{
-				if (it->Address.ChannelID == channel_id && it->Address.ChipID == chip_id) size++;
-			}
-			for (auto& it : *write_unit->get_buffer(stream_id))
-			{
-				if (it->Address.ChannelID == channel_id && it->Address.ChipID == chip_id) size++;
-			}
+			size += read_unit->get_buffer(stream_id)->size() + write_unit->get_buffer(stream_id)->size();
 		}
+		size /= channel_count * chip_no_per_channel;
+		size += UserReadTRQueue[channel_id][chip_id].size() + UserWriteTRQueue[channel_id][chip_id].size();
 		return size;
 	}
 
-	bool TSU_SLFIFO::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	bool TSU_SLFFIFO::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		Flash_Transaction_Queue* sourceQueue1 = NULL, * sourceQueue2 = NULL;
 
@@ -466,7 +470,7 @@ namespace SSD_Components
 		return true;
 	}
 
-	bool TSU_SLFIFO::service_write_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	bool TSU_SLFFIFO::service_write_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		Flash_Transaction_Queue* sourceQueue1 = NULL, * sourceQueue2 = NULL;
 
@@ -593,7 +597,7 @@ namespace SSD_Components
 		return true;
 	}
 
-	bool TSU_SLFIFO::service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	bool TSU_SLFFIFO::service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
 			return false;
@@ -638,14 +642,32 @@ namespace SSD_Components
 		return true;
 	}
 
-	void TSU_SLFIFO::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
+	void TSU_SLFFIFO::service_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
 		if (_NVMController->GetChipStatus(chip) != ChipStatus::IDLE)
 			return;
 		if (stream_count > 1)
 		{
-			read_unit->releasing(UserReadTRQueue);
-			write_unit->releasing(UserWriteTRQueue);
+			std::queue<NVM_Transaction_Flash*> queue = read_unit->releasing();
+			while (queue.size())
+			{
+				NVM_Transaction_Flash* transaction = queue.front(); queue.pop();
+				if (!transaction->Physical_address_determined)
+				{
+					ftl->Address_Mapping_Unit->translate_after_dispatched(transaction);
+				}
+				UserReadTRQueue[transaction->Address.ChannelID][transaction->Address.ChipID].push_back(transaction);
+			}
+			queue = write_unit->releasing();
+			while (queue.size())
+			{
+				NVM_Transaction_Flash* transaction = queue.front(); queue.pop();
+				if (!transaction->Physical_address_determined)
+				{
+					ftl->Address_Mapping_Unit->translate_after_dispatched(transaction);
+				}
+				UserWriteTRQueue[transaction->Address.ChannelID][transaction->Address.ChipID].push_back(transaction);
+			}
 		}
 		if (!service_read_transaction(chip))
 			if (!service_write_transaction(chip))
