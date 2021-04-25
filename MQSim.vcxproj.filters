@@ -238,6 +238,15 @@
     <ClCompile Include="src\ssd\TSU_NPFLIN.cpp">
       <Filter>ssd</Filter>
     </ClCompile>
+    <ClCompile Include="src\ssd\TSU_ChipLevelBuffer.cpp">
+      <Filter>ssd</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ssd\TSU_CLBFIFO.cpp">
+      <Filter>ssd</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ssd\TSU_CLBFLIN.cpp">
+      <Filter>ssd</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\exec\Device_Parameter_Set.h">
@@ -526,6 +535,15 @@
       <Filter>ssd</Filter>
     </ClInclude>
     <ClInclude Include="src\ssd\TSU_NPFLIN.h">
+      <Filter>ssd</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ssd\TSU_ChipLevelBuffer.h">
+      <Filter>ssd</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ssd\TSU_CLBFIFO.h">
+      <Filter>ssd</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ssd\TSU_CLBFLIN.h">
       <Filter>ssd</Filter>
     </ClInclude>
   </ItemGroup>

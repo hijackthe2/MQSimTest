@@ -180,6 +180,7 @@ namespace SSD_Components
 		{
 			if (_my_instance->_NVMController->Get_channel_status(channel_id) == BusChannelStatus::IDLE)
 			{
+				_my_instance->enqueue_transaction_for_speed_limit_type_tsu();
 				for (unsigned int i = 0; i < _my_instance->chip_no_per_channel; i++)
 				{
 					NVM::FlashMemory::Flash_Chip* chip = _my_instance->_NVMController->Get_chip(channel_id, _my_instance->Round_robin_turn_of_channel[channel_id]);

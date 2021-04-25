@@ -21,6 +21,11 @@ namespace Host_Components
 		generator_type(generator_type), Average_inter_arrival_time_nano_sec(Average_inter_arrival_time_nano_sec), average_number_of_enqueued_requests(average_number_of_enqueued_requests),
 		seed(seed), generate_aligned_addresses(generate_aligned_addresses), alignment_value(alignment_value)
 	{
+		std::vector<int> random_vector;
+		for (int i = 5; i <= 100; i += 5) random_vector.emplace_back(i);
+		std::random_shuffle(random_vector.begin(), random_vector.end());
+		for (int i = 0; i < 20; ++i) random_set.insert(random_vector[i]);
+
 		if (read_ratio == 0.0)//If read ratio is 0, then we change its value to a negative one so that in request generation we never generate a read request
 			read_ratio = -1.0;
 		random_request_type_generator_seed = seed++;
@@ -134,12 +139,36 @@ namespace Host_Components
 			}
 			break;
 		case Utils::Address_Distribution_Type::RANDOM_UNIFORM:
+		{
+			/*if (random_set.count(next_progress_step))
+			{
+				request->Start_LBA = random_address_generator->Uniform_ulong(start_lsa_on_device, end_lsa_on_device);
+				if (request->Start_LBA < start_lsa_on_device || request->Start_LBA > end_lsa_on_device)
+					PRINT_ERROR("Out of range address is generated in IO_Flow_Synthetic!\n")
+				if (request->Start_LBA + request->LBA_count > end_lsa_on_device)
+					request->Start_LBA = start_lsa_on_device;
+			}
+			else
+			{
+				request->Start_LBA = streaming_next_address;
+				if (request->Start_LBA + request->LBA_count > end_lsa_on_device)
+					request->Start_LBA = start_lsa_on_device;
+				streaming_next_address += request->LBA_count;
+				if (streaming_next_address > end_lsa_on_device)
+					streaming_next_address = start_lsa_on_device;
+				if (generate_aligned_addresses)
+					if (streaming_next_address % alignment_value != 0)
+						streaming_next_address += alignment_value - (streaming_next_address % alignment_value);
+				if (streaming_next_address == request->Start_LBA)
+					PRINT_MESSAGE("Synthetic Message Generator: The same address is always repeated due to configuration parameters!")
+			}*/
 			request->Start_LBA = random_address_generator->Uniform_ulong(start_lsa_on_device, end_lsa_on_device);
 			if (request->Start_LBA < start_lsa_on_device || request->Start_LBA > end_lsa_on_device)
 				PRINT_ERROR("Out of range address is generated in IO_Flow_Synthetic!\n")
 			if (request->Start_LBA + request->LBA_count > end_lsa_on_device)
 				request->Start_LBA = start_lsa_on_device;
 			break;
+		}
 		default:
 			PRINT_ERROR("Unknown address distribution type!\n")
 		}

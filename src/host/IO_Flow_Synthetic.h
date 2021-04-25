@@ -56,6 +56,8 @@ namespace Host_Components
 		bool generate_aligned_addresses;
 		unsigned int alignment_value;
 		int seed;
+
+		std::unordered_set<int> random_set;
 	};
 }
 

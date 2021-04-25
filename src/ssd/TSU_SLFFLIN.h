@@ -34,6 +34,7 @@ namespace SSD_Components
 		size_t UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		size_t UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction);
+		void queue_insertion(NVM_Transaction_Flash* transaction) {}
 	private:
 		struct FLIN_Unit
 		{
@@ -75,6 +76,7 @@ namespace SSD_Components
 			double& pw_read, double& pw_write, unsigned int GCM, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		NVM_Transaction_Flash_RD* get_read_slot(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		NVM_Transaction_Flash_WR* get_write_slot(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		void estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* buffer);
 		void estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 		void move_alone_time(NVM_Transaction_Flash* forward_transaction, NVM_Transaction_Flash* backward_transaction);
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
@@ -86,6 +88,7 @@ namespace SSD_Components
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		void service_transaction(NVM::FlashMemory::Flash_Chip* chip);
+		void enqueue_transaction_for_speed_limit_type_tsu();
 	};
 }
 

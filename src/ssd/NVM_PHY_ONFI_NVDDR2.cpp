@@ -166,6 +166,11 @@ namespace SSD_Components {
 		return (chipBKE->Status != ChipStatus::IDLE);
 	}
 
+	bool NVM_PHY_ONFI_NVDDR2::Is_chip_busy(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
+	{
+		return bookKeepingTable[channel_id][chip_id].Status != ChipStatus::IDLE;
+	}
+
 	void NVM_PHY_ONFI_NVDDR2::test_transaction_for_conflicting_with_gc(NVM_Transaction_Flash* transaction)
 	{
 		ChipBookKeepingEntry* chipBKE = &bookKeepingTable[transaction->Address.ChannelID][transaction->Address.ChipID];

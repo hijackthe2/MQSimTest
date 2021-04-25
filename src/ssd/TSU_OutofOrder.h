@@ -42,6 +42,7 @@ namespace SSD_Components
 		size_t GCTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		size_t UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		size_t UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+		void queue_insertion(NVM_Transaction_Flash* transaction) {}
 
 	private:
 		Flash_Transaction_Queue** UserReadTRQueue;
@@ -61,6 +62,7 @@ namespace SSD_Components
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		// add function
 		void service_transaction(NVM::FlashMemory::Flash_Chip* chip);
+		void enqueue_transaction_for_speed_limit_type_tsu() {};
 	};
 }
 

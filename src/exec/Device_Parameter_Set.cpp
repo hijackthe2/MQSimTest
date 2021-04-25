@@ -262,16 +262,46 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 		break;
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::RBGC:
 		val = "RBGC";
+		break;
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::RRA:
 		val = "RRA";
+		break;
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::GRRA:
 		val = "GRRA";
+		break;
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RBGC:
 		val = "SLF_RBGC";
+		break;
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RRA:
 		val = "SLF_RRA";
+		break;
 	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_GRRA:
 		val = "SLF_GRRA";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::EQFA:
+		val = "EQFA";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_EQFA:
+		val = "SLF_EQFA";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_CWDP:
+		val = "SLF_CWDP";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW:
+		val = "CW";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_EQFA:
+		val = "CW_EQFA";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_GRRA:
+		val = "CW_GRRA";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_RBGC:
+		val = "CW_RBGC";
+		break;
+	case SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_RRA:
+		val = "CW_RRA";
+		break;
 	default:
 		break;
 	}
@@ -306,6 +336,12 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 		break;
 	case SSD_Components::Flash_Scheduling_Type::NP_FLIN:
 		val = "NP_FLIN";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::CLB_FIFO:
+		val = "CLB_FIFO";
+		break;
+	case SSD_Components::Flash_Scheduling_Type::CLB_FLIN:
+		val = "CLB_FLIN";
 		break;
 	default:
 		break;
@@ -612,6 +648,22 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_RRA;
 				else if (strcmp(val.c_str(), "SLF_GRRA") == 0)
 					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_GRRA;
+				else if (strcmp(val.c_str(), "EQFA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::EQFA;
+				else if (strcmp(val.c_str(), "SLF_EQFA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_EQFA;
+				else if (strcmp(val.c_str(), "SLF_CWDP") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::SLF_CWDP;
+				else if (strcmp(val.c_str(), "CW") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW;
+				else if (strcmp(val.c_str(), "CW_EQFA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_EQFA;
+				else if (strcmp(val.c_str(), "CW_GRRA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_GRRA;
+				else if (strcmp(val.c_str(), "CW_RBGC") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_RBGC;
+				else if (strcmp(val.c_str(), "CW_RRA") == 0)
+					Plane_Allocation_Scheme = SSD_Components::Flash_Plane_Allocation_Scheme_Type::CW_RRA;
 				else PRINT_ERROR("Unknown plane allocation scheme type specified in the SSD configuration file")
 			}
 			else if (strcmp(param->name(), "Transaction_Scheduling_Policy") == 0)
@@ -636,6 +688,10 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::SLF_FLIN;
 				else if (strcmp(val.c_str(), "NP_FLIN") == 0)
 					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::NP_FLIN;
+				else if (strcmp(val.c_str(), "CLB_FIFO") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::CLB_FIFO;
+				else if (strcmp(val.c_str(), "CLB_FLIN") == 0)
+					Transaction_Scheduling_Policy = SSD_Components::Flash_Scheduling_Type::CLB_FLIN;
 				else PRINT_ERROR("Unknown transaction scheduling type specified in the SSD configuration file")
 			}
 			else if (strcmp(param->name(), "Overprovisioning_Ratio") == 0)

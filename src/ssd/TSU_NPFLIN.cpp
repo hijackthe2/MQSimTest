@@ -108,11 +108,20 @@ namespace SSD_Components
 	}
 	size_t TSU_NPFLIN::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
-		return size_t();
+		size_t sz = 0;
+		for (auto tr : UserReadTRQueue[channel_id][chip_id])
+		{
+			if (tr->Stream_id == gc_stream_id) sz++;
+		}
+		for (auto tr : UserWriteTRQueue[channel_id][chip_id])
+		{
+			if (tr->Stream_id == gc_stream_id) sz++;
+		}
+		return sz;
 	}
 	size_t TSU_NPFLIN::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
-		return size_t();
+		return UserReadTRQueue[channel_id][chip_id].size() + UserWriteTRQueue[channel_id][chip_id].size();
 	}
 
 	void TSU_NPFLIN::Start_simulation()

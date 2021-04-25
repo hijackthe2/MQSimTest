@@ -108,11 +108,20 @@ namespace SSD_Components
 	}
 	size_t TSU_SimpleFLIN::UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
-		return size_t();
+		size_t sz = 0;
+		for (auto tr : UserReadTRQueue[channel_id][chip_id])
+		{
+			if (tr->Stream_id == gc_stream_id) sz++;
+		}
+		for (auto tr : UserWriteTRQueue[channel_id][chip_id])
+		{
+			if (tr->Stream_id == gc_stream_id) sz++;
+		}
+		return sz;
 	}
 	size_t TSU_SimpleFLIN::UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id)
 	{
-		return size_t();
+		return UserReadTRQueue[channel_id][chip_id].size() + UserWriteTRQueue[channel_id][chip_id].size();
 	}
 
 	void TSU_SimpleFLIN::Start_simulation()
@@ -632,7 +641,8 @@ namespace SSD_Components
 			flash_page_ID_type page_id = queue_list.front()->front()->Address.PageID;
 			for (std::list<Flash_Transaction_Queue*>::iterator queue = queue_list.begin(); queue != queue_list.end(); )
 			{
-				for (Flash_Transaction_Queue::iterator it = (*queue)->begin(); it != (*queue)->end(); )
+				for (Flash_Transaction_Queue::iterator it = (*queue)->begin(); it != (*queue)->end()
+					&& transaction_dispatch_slots.size() < plane_no_per_die; )
 				{
 					if ((*it)->Address.DieID == die_id && !(plane_vector & 1 << (*it)->Address.PlaneID))
 					{
@@ -666,8 +676,8 @@ namespace SSD_Components
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserWriteTRQueue[chip->ChannelID][chip->ChipID]);
-							if (is_continued) continue;
-							else break;
+							/*if (is_continued) continue;
+							else break;*/
 						}
 					}
 					++it;
@@ -682,7 +692,7 @@ namespace SSD_Components
 				{
 					break;
 				}
-				if (transaction_dispatch_slots.size() && !is_continued) break;
+				//if (transaction_dispatch_slots.size() && !is_continued) break;
 			}
 			if (!transaction_dispatch_slots.empty())
 			{
@@ -751,7 +761,8 @@ namespace SSD_Components
 			flash_page_ID_type page_id = queue_list.front()->front()->Address.PageID;
 			for (std::list<Flash_Transaction_Queue*>::iterator queue = queue_list.begin(); queue != queue_list.end(); )
 			{
-				for (Flash_Transaction_Queue::iterator it = (*queue)->begin(); it != (*queue)->end(); )
+				for (Flash_Transaction_Queue::iterator it = (*queue)->begin(); it != (*queue)->end()
+					&& transaction_dispatch_slots.size() < plane_no_per_die; )
 				{
 					if ((*it)->Address.DieID == die_id && !(plane_vector & 1 << (*it)->Address.PlaneID)
 						&& ((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL)
@@ -788,8 +799,8 @@ namespace SSD_Components
 							}
 							adjust_alone_time(dispatched_stream_id, adjust_time, type, source,
 								&UserReadTRQueue[chip->ChannelID][chip->ChipID]);
-							if (is_continued) continue;
-							else break;
+							/*if (is_continued) continue;
+							else break;*/
 						}
 					}
 					++it;
@@ -804,7 +815,7 @@ namespace SSD_Components
 				{
 					break;
 				}
-				if (transaction_dispatch_slots.size() && !is_continued) break;
+				//if (transaction_dispatch_slots.size() && !is_continued) break;
 			}
 			if (!transaction_dispatch_slots.empty())
 			{

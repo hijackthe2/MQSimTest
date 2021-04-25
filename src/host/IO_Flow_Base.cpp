@@ -213,7 +213,8 @@ namespace Host_Components
 				else progress_bar += " ";
 			}
 			progress_bar += "] ";
-			PRINT_MESSAGE(progress_bar << " " << progress << "% progress in " << ID() << std::endl)
+			PRINT_MESSAGE(progress_bar << " " << progress << "% progress in " << ID() << "\t"
+				<< Simulator->Time() << "\t" << Simulator->Time() / 1.44e13 << std::endl)
 				next_progress_step += 5;
 		}
 
@@ -332,7 +333,8 @@ namespace Host_Components
 				else progress_bar += " ";
 			}
 			progress_bar += "] ";
-			PRINT_MESSAGE(progress_bar << " " << progress << "% progress in " << ID() << std::endl)
+			PRINT_MESSAGE(progress_bar << " " << progress << "% progress in " << ID() << "\t"
+				<< Simulator->Time() << "\t" << Simulator->Time() / 1.44e13 << std::endl)
 			next_progress_step += 5;
 		}
 
@@ -344,7 +346,21 @@ namespace Host_Components
 			STAT_serviced_request_count_short_term = 0;
 			next_logging_milestone = Simulator->Time() + logging_period;
 		}
-
+		/*4h 1.44e13
+		3h 1.08e13*/
+		// 1.44e13
+		/*if (flow_id == 0 && STAT_serviced_request_count >= 9262)
+		{
+			Simulator->Stop_simulation();
+			std::cout << "Stopped by MQSim with digit\n";
+			return;
+		}
+		if (Simulator->Time() >= 3399088729898)
+		{
+			Simulator->Stop_simulation();
+			std::cout << "Stopped by MQSim with time\n";
+			return;
+		}*/
 		if (is_done())
 		{
 			((Host_System*)Simulator->GetObject("Host"))->decide_whether_to_stop_engine();

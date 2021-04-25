@@ -21,11 +21,17 @@
 
 namespace SSD_Components
 {
-	enum class Flash_Scheduling_Type { OUT_OF_ORDER, FLIN,
-		SIMPLE_FLIN, NP_FLIN,
-		SPEED_LIMIT,
-		SL_FIFO, SL_FLIN,
-		SLF_FIFO, SLF_FLIN
+	enum class Flash_Scheduling_Type { OUT_OF_ORDER, // fifo
+		FLIN, // original flin
+		SIMPLE_FLIN, // single priority flin
+		NP_FLIN, // no priority flin, gc prioritized
+		SPEED_LIMIT, // speed limit
+		SL_FIFO, // speed limit with fifo
+		SL_FLIN, // speed limit with simple flin
+		SLF_FIFO, // speed limit first, then allocation, tsu is fifo
+		SLF_FLIN, // speed limit first, then allocation, tsu is simple flin
+		CLB_FIFO, // chip level buffer with fifo, allocate cw then dp
+		CLB_FLIN // chip level buffer with simple flin, allocate cw then dp
 	};
 	class FTL;
 	class TSU_Base : public MQSimEngine::Sim_Object
@@ -81,6 +87,7 @@ namespace SSD_Components
 		void proportional_slowdown_ordered_list(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id,
 			std::vector<double>& v);
 		unsigned int Get_max_psd_size() { return max_psd_size; }
+		virtual void queue_insertion(NVM_Transaction_Flash* transaction) = 0;
 	protected:
 		struct Gap
 		{
@@ -110,6 +117,7 @@ namespace SSD_Components
 		// add function
 		virtual void service_transaction(NVM::FlashMemory::Flash_Chip* chip) = 0;
 		virtual void handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction) = 0;
+		virtual void enqueue_transaction_for_speed_limit_type_tsu() = 0;
 		static void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
 		static void handle_channel_idle_signal(flash_channel_ID_type);
 		static void handle_chip_idle_signal(NVM::FlashMemory::Flash_Chip* chip);

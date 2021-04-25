@@ -1,5 +1,5 @@
-#ifndef TSU_SLFLIN_H
-#define TSU_SLFLIN_H
+#ifndef TSU_CLBFLIN_H
+#define TSU_CLBFLIN_H
 
 #include <list>
 #include <set>
@@ -7,21 +7,22 @@
 #include "NVM_Transaction_Flash.h"
 #include "NVM_PHY_ONFI_NVDDR2.h"
 #include "FTL.h"
+#include "TSU_ChipLevelBuffer.h"
 #include <stack>
 
 namespace SSD_Components
 {
-	class TSU_SLFLIN : public TSU_Base
+	class TSU_CLBFLIN : public TSU_Base
 	{
 	public:
-		TSU_SLFLIN(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController,
+		TSU_CLBFLIN(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI_NVDDR2* NVMController,
 			const unsigned int Channel_no, const unsigned int chip_no_per_channel, const unsigned int die_no_per_chip, const unsigned int plane_no_per_die, unsigned int flash_page_size,
 			const sim_time_type flow_classification_epoch, const unsigned int alpha_read, const unsigned int alpha_write,
 			const stream_id_type max_flow_id, const double f_thr, const unsigned int GC_FLIN,
 			const sim_time_type WriteReasonableSuspensionTimeForRead, const sim_time_type EraseReasonableSuspensionTimeForRead,
 			const sim_time_type EraseReasonableSuspensionTimeForWrite,
 			const bool EraseSuspensionEnabled, const bool ProgramSuspensionEnabled);
-		~TSU_SLFLIN();
+		~TSU_CLBFLIN();
 		void Prepare_for_transaction_submit();
 		void Submit_transaction(NVM_Transaction_Flash* transaction);
 		void Schedule0();
@@ -34,7 +35,7 @@ namespace SSD_Components
 		size_t UserTRQueueSize(stream_id_type gc_stream_id, flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		size_t UserTRQueueSize(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void handle_transaction_serviced_signal(NVM_Transaction_Flash* transaction);
-		void queue_insertion(NVM_Transaction_Flash* transaction) {}
+		void queue_insertion(NVM_Transaction_Flash* transaction);
 	private:
 		struct FLIN_Unit
 		{
@@ -60,11 +61,9 @@ namespace SSD_Components
 		Flash_Transaction_Queue** MappingWriteTRQueue;
 		std::list<std::pair<Transaction_Type, Transaction_Source_Type>>** transaction_waiting_dispatch_slots;
 
-		TSU_SLUnit* read_unit, * write_unit;
+		TSU_ChipLevelBuffer* read_clb;
+		TSU_ChipLevelBuffer* write_clb;
 
-		void first_stage(Flash_Transaction_Queue* queue, NVM_Transaction_Flash* transaction,
-			std::list<NVM_Transaction_Flash*>::iterator& head_high, std::set<stream_id_type>& low_intensity_class,
-			unsigned int& serviced_recent);
 		void reorder_for_fairness(Flash_Transaction_Queue* queue,
 			std::list<NVM_Transaction_Flash*>::iterator start, std::list<NVM_Transaction_Flash*>::iterator end);
 		void estimate_alone_waiting_time(Flash_Transaction_Queue* queue, std::list<NVM_Transaction_Flash*>::iterator position);
@@ -79,16 +78,15 @@ namespace SSD_Components
 		void estimate_alone_time(NVM_Transaction_Flash* transaction, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 		void move_alone_time(NVM_Transaction_Flash* forward_transaction, NVM_Transaction_Flash* backward_transaction);
 		void adjust_alone_time(stream_id_type dispatched_stream_id, sim_time_type adjust_time, Transaction_Type type,
-			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer,
-			flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
+			Transaction_Source_Type source, Flash_Transaction_Queue* queue, Flash_Transaction_Queue* buffer);
 		bool is_dominated_by_one_stream(Flash_Transaction_Queue* queue);
 
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		void service_transaction(NVM::FlashMemory::Flash_Chip* chip);
-		void enqueue_transaction_for_speed_limit_type_tsu();
+		void enqueue_transaction_for_speed_limit_type_tsu() {};
 	};
 }
 
-#endif // !TSU_SLFLIN_H
+#endif // !TSU_CLBFLIN_H

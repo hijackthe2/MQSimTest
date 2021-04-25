@@ -65,6 +65,7 @@ namespace SSD_Components
 				{
 					if (pbke->Blocks[block_id].Invalid_page_count > pbke->Blocks[gc_candidate_block_id].Invalid_page_count
 						&& pbke->Blocks[block_id].Current_page_write_index == pages_no_per_block
+						&& pbke->Blocks[block_id].Invalid_page_count > 0
 						&& is_safe_gc_wl_candidate(pbke, block_id))
 						gc_candidate_block_id = block_id;
 				}
@@ -77,9 +78,12 @@ namespace SSD_Components
 				{
 					flash_block_ID_type block_id = random_generator.Uniform_uint(0, block_no_per_plane - 1);
 					if (pbke->Ongoing_erase_operations.find(block_id) == pbke->Ongoing_erase_operations.end()
-						&& is_safe_gc_wl_candidate(pbke, block_id))
+						&& is_safe_gc_wl_candidate(pbke, block_id)
+						&& pbke->Blocks[block_id].Invalid_page_count > 0
+						&& pbke->Blocks[block_id].Current_page_write_index == pages_no_per_block)
 						random_set.insert(block_id);
 				}
+				if (random_set.empty()) return;
 				gc_candidate_block_id = *random_set.begin();
 				for(auto &block_id : random_set)
 					if (pbke->Blocks[block_id].Invalid_page_count > pbke->Blocks[gc_candidate_block_id].Invalid_page_count
@@ -178,7 +182,7 @@ namespace SSD_Components
 						min_slowdown = std::min(min_slowdown, slowdown);
 						max_slowdown = std::max(max_slowdown, slowdown);
 					}
-					// find the most suitable block that can result in max fairness among all candidated blocks
+					// find the most suitable block that can lead to max fairness among all candidated blocks
 					if (max_fairness < min_slowdown / (1e-10 + max_slowdown))
 					{
 						max_fairness = min_slowdown / (1e-10 + max_slowdown);
@@ -192,7 +196,7 @@ namespace SSD_Components
 			default:
 				break;
 		}
-			
+		
 		if (pbke->Ongoing_erase_operations.find(gc_candidate_block_id) != pbke->Ongoing_erase_operations.end())//This should never happen, but we check it here for safty
 			return;
 			
@@ -203,8 +207,8 @@ namespace SSD_Components
 			return;
 		if (!is_safe_gc_wl_candidate(pbke, gc_candidate_block_id))
 			return;
-
-		std::unordered_map<std::string, float> info = get_gc_info(plane_address);
+		
+		std::unordered_map<std::string, float> info = get_gc_info(gc_candidate_address);
 		float bip = info["bip"];
 		int gt = (int)info["gt"], ut = (int)info["ut"];
 		float psd = info["psd"], f = info["f"];
@@ -264,6 +268,7 @@ namespace SSD_Components
 					{
 						gc_read = new NVM_Transaction_Flash_RD(Transaction_Source_Type::GC_WL, block->Stream_id, sector_no_per_page * SECTOR_SIZE_IN_BYTE,
 							NO_LPA, address_mapping_unit->Convert_address_to_ppa(gc_candidate_address), gc_candidate_address, NULL, 0, NULL, 0, INVALID_TIME_STAMP);
+						gc_read->Physical_address_determined = true;
 						gc_write = new NVM_Transaction_Flash_WR(Transaction_Source_Type::GC_WL, block->Stream_id, sector_no_per_page * SECTOR_SIZE_IN_BYTE,
 							NO_LPA, NO_PPA, gc_candidate_address, NULL, 0, gc_read, 0, INVALID_TIME_STAMP);
 						gc_write->ExecutionMode = WriteExecutionModeType::SIMPLE;
@@ -276,6 +281,7 @@ namespace SSD_Components
 				}
 			}
 		}
+		gc_erase_tr->Physical_address_determined = true;
 		block->Erase_transaction = gc_erase_tr;
 		record_gc_info_when_issued(gc_erase_tr);
 		tsu->Submit_transaction(gc_erase_tr);

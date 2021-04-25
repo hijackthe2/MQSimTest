@@ -69,6 +69,9 @@
     <ClCompile Include="src\ssd\ONFI_Channel_Base.cpp" />
     <ClCompile Include="src\ssd\ONFI_Channel_NVDDR2.cpp" />
     <ClCompile Include="src\ssd\Queue_Probe.cpp" />
+    <ClCompile Include="src\ssd\TSU_ChipLevelBuffer.cpp" />
+    <ClCompile Include="src\ssd\TSU_CLBFIFO.cpp" />
+    <ClCompile Include="src\ssd\TSU_CLBFLIN.cpp" />
     <ClCompile Include="src\ssd\TSU_NPFLIN.cpp" />
     <ClCompile Include="src\ssd\TSU_SimpleFLIN.cpp" />
     <ClCompile Include="src\ssd\TSU_SLFFIFO.cpp" />
@@ -160,6 +163,9 @@
     <ClInclude Include="src\ssd\ONFI_Channel_Base.h" />
     <ClInclude Include="src\ssd\ONFI_Channel_NVDDR2.h" />
     <ClInclude Include="src\ssd\Queue_Probe.h" />
+    <ClInclude Include="src\ssd\TSU_ChipLevelBuffer.h" />
+    <ClInclude Include="src\ssd\TSU_CLBFIFO.h" />
+    <ClInclude Include="src\ssd\TSU_CLBFLIN.h" />
     <ClInclude Include="src\ssd\TSU_NPFLIN.h" />
     <ClInclude Include="src\ssd\TSU_SimpleFLIN.h" />
     <ClInclude Include="src\ssd\TSU_SLFFIFO.h" />

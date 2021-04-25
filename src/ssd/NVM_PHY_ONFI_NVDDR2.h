@@ -110,6 +110,7 @@ namespace SSD_Components
 		bool Is_chip_busy_with_gc(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id, flash_block_ID_type die_id, flash_plane_ID_type plane_id);
 		bool Is_chip_busy_with_gc(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		bool Is_chip_busy(NVM_Transaction_Flash* transaction);
+		bool Is_chip_busy(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id);
 		void test_transaction_for_conflicting_with_gc(NVM_Transaction_Flash* transaction);
 		void Change_memory_status_preconditioning(const NVM::NVM_Memory_Address* address, const void* status_info);
 		ONFI_Channel_NVDDR2* Get_channel(flash_channel_ID_type channel_id) { return channels[channel_id]; }

@@ -19,6 +19,8 @@
 #include "../ssd/TSU_SLFFIFO.h"
 #include "../ssd/TSU_SLFFLIN.h"
 #include "../ssd/TSU_NPFLIN.h"
+#include "../ssd/TSU_CLBFIFO.h"
+#include "../ssd/TSU_CLBFLIN.h"
 #include "../ssd/ONFI_Channel_NVDDR2.h"
 #include "../ssd/NVM_PHY_ONFI_NVDDR2.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
@@ -228,6 +230,22 @@ SSD_Device::SSD_Device(Device_Parameter_Set* parameters, std::vector<IO_Flow_Par
 			break;
 		case SSD_Components::Flash_Scheduling_Type::NP_FLIN:
 			tsu = new SSD_Components::TSU_NPFLIN(ftl->ID() + ".TSU", ftl, static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY),
+				parameters->Flash_Channel_Count, parameters->Chip_No_Per_Channel,
+				parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die, parameters->Flash_Parameters.Page_Capacity,
+				10000000, 33554432, 262144, (unsigned int)io_flows->size(), 0.6, 1000,
+				parameters->Preferred_suspend_write_time_for_read, parameters->Preferred_suspend_erase_time_for_read, parameters->Preferred_suspend_erase_time_for_write,
+				erase_suspension, program_suspension);
+			break;
+		case SSD_Components::Flash_Scheduling_Type::CLB_FIFO:
+			tsu = new SSD_Components::TSU_CLBFIFO(ftl->ID() + ".TSU", ftl, static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY),
+				parameters->Flash_Channel_Count, parameters->Chip_No_Per_Channel,
+				parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die,
+				(unsigned int)io_flows->size(), parameters->Preferred_suspend_write_time_for_read,
+				parameters->Preferred_suspend_erase_time_for_read, parameters->Preferred_suspend_erase_time_for_write,
+				erase_suspension, program_suspension);
+			break;
+		case SSD_Components::Flash_Scheduling_Type::CLB_FLIN:
+			tsu = new SSD_Components::TSU_CLBFLIN(ftl->ID() + ".TSU", ftl, static_cast<SSD_Components::NVM_PHY_ONFI_NVDDR2*>(device->PHY),
 				parameters->Flash_Channel_Count, parameters->Chip_No_Per_Channel,
 				parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die, parameters->Flash_Parameters.Page_Capacity,
 				10000000, 33554432, 262144, (unsigned int)io_flows->size(), 0.6, 1000,
