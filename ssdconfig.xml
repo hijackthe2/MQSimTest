@@ -27,8 +27,8 @@
 			 <Ideal_Mapping_Table>true</Ideal_Mapping_Table>
 			 <CMT_Capacity>2097152</CMT_Capacity>
 			 <CMT_Sharing_Mode>SHARED</CMT_Sharing_Mode>
-			 <Plane_Allocation_Scheme>RRA</Plane_Allocation_Scheme>
-			 <Transaction_Scheduling_Policy>CLB_FIFO</Transaction_Scheduling_Policy>
+			 <Plane_Allocation_Scheme>CWDP</Plane_Allocation_Scheme>
+			 <Transaction_Scheduling_Policy>OUT_OF_ORDER</Transaction_Scheduling_Policy>
 			 <Overprovisioning_Ratio>0.07</Overprovisioning_Ratio>
 			 <GC_Exec_Threshold>0.850000</GC_Exec_Threshold>
 			 <GC_Block_Selection_Policy>GREEDY</GC_Block_Selection_Policy>

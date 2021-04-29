@@ -106,6 +106,13 @@ namespace SSD_Components
 			}
 
 			_my_instance->snapshot.erase(key);
+
+			/*unsigned int stream_count = _my_instance->address_mapping_unit->Get_no_of_input_streams();
+			if (Stats::Total_gc_executions >= stream_count * 10000)
+			{
+				std::cout << "stopped by MQSim with gc " << Stats::Total_gc_executions << "\n";
+				Simulator->Stop_simulation();
+			}*/
 		}
 		PlaneBookKeepingType* pbke = &(_my_instance->block_manager->plane_manager[transaction->Address.ChannelID][transaction->Address.ChipID][transaction->Address.DieID][transaction->Address.PlaneID]);
 

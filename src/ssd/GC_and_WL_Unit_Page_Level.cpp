@@ -237,6 +237,24 @@ namespace SSD_Components
 			}
 			if (gap < gc_time) return;
 		}*/
+		/*if (free_block_pool_size >= block_pool_gc_hard_threshold)
+		{
+			unsigned int stream_count = address_mapping_unit->Get_no_of_input_streams();
+			double probability = 1.0;
+			size_t total_count = tsu->UserTRQueueSize(plane_address.ChannelID, plane_address.ChipID);
+			if (total_count > 0)
+			{
+				double max_prob = DBL_MIN;
+				for (unsigned int stream_id = 0; stream_id < stream_count; ++stream_id)
+				{
+					double prob = (double)tsu->UserTRQueueSize(stream_id, plane_address.ChannelID, plane_address.ChipID) / total_count;
+					max_prob = std::max(max_prob, prob);
+				}
+				probability = 1.0 - 1.0 / (stream_count * max_prob);
+			}
+			double prob = (double)(rand() % 10000) / 10000;
+			if (prob >= probability) return;
+		}*/
 
 		//Run the state machine to protect against race condition
 		block_manager->GC_WL_started(gc_candidate_address);

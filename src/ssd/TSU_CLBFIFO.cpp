@@ -549,9 +549,6 @@ namespace SSD_Components
 			return;
 		if (!service_read_transaction(chip))
 			if (!service_write_transaction(chip))
-			{
-				if (!service_read_transaction(chip))
-					service_erase_transaction(chip);
-			}
+				service_erase_transaction(chip);
 	}
 }
